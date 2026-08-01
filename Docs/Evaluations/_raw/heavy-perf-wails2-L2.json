@@ -1,0 +1,38 @@
+﻿{
+  "catalogEntryCount": 1000,
+  "fixtureRoot": "E:\\Code\\CursorConfigManagerWails2\\_bench_fixture_heavy",
+  "lastItemCount": 1005,
+  "lastPendingNewProjectCount": 40,
+  "level": "L2",
+  "libraryRoot": "E:\\Code\\CursorConfigManagerWails2\\_bench_fixture_heavy\\library",
+  "note": "catalog.Load(force) + discovery.Scan(fixed root) + Merge + ScanAll (no WebView/IPC)",
+  "product": "wails2-headless",
+  "projectScanMaxDepth": 8,
+  "rounds": 5,
+  "roundsRaw": [
+    {
+      "snapshotMs": 34.409,
+      "scanPreviewMs": 301.017
+    },
+    {
+      "snapshotMs": 28.335,
+      "scanPreviewMs": 184.889
+    },
+    {
+      "snapshotMs": 28.361,
+      "scanPreviewMs": 184.705
+    },
+    {
+      "snapshotMs": 30.099,
+      "scanPreviewMs": 188.759
+    },
+    {
+      "snapshotMs": 30.14,
+      "scanPreviewMs": 187.402
+    }
+  ],
+  "scanFileCount": 1040,
+  "scanPreviewMsMedian": 187.402,
+  "scanRoot": "E:\\Code\\CursorConfigManagerWails2\\_bench_fixture_heavy\\scan-fixture",
+  "snapshotMsMedian": 30.099
+}

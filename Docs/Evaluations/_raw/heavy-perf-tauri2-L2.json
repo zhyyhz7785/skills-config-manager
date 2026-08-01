@@ -1,0 +1,37 @@
+﻿{
+    "product":  "tauri2-headless",
+    "level":  "L2",
+    "rounds":  5,
+    "libraryRoot":  "E:\\Code\\CursorConfigManagerWails2\\_bench_fixture_heavy\\library",
+    "scanRoot":  "E:\\Code\\CursorConfigManagerWails2\\_bench_fixture_heavy\\scan-fixture",
+    "fixtureRoot":  "E:\\Code\\CursorConfigManagerWails2\\_bench_fixture_heavy",
+    "projectScanMaxDepth":  8,
+    "catalogEntryCount":  1000,
+    "snapshotMsMedian":  71.316,
+    "scanPreviewMsMedian":  282.071,
+    "lastItemCount":  1006,
+    "lastPendingNewProjectCount":  40,
+    "roundsRaw":  [
+                      {
+                          "scanPreviewMs":  282.0707,
+                          "snapshotMs":  89.9605
+                      },
+                      {
+                          "scanPreviewMs":  269.06370000000004,
+                          "snapshotMs":  71.3159
+                      },
+                      {
+                          "scanPreviewMs":  260.6716,
+                          "snapshotMs":  68.1334
+                      },
+                      {
+                          "scanPreviewMs":  300.8245,
+                          "snapshotMs":  68.74249999999999
+                      },
+                      {
+                          "scanPreviewMs":  285.58689999999996,
+                          "snapshotMs":  74.4695
+                      }
+                  ],
+    "note":  "run_perf_bench release example on heavy fixture"
+}

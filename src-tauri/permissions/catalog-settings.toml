@@ -1,0 +1,9 @@
+[[permission]]
+identifier = "allow-catalog-settings"
+description = "App settings + catalog ring backup"
+commands.allow = [
+  "update_app_settings",
+  "reset_catalog",
+  "list_catalog_backups",
+  "restore_catalog_backup"
+]

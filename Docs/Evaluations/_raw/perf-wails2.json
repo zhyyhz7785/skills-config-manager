@@ -1,0 +1,17 @@
+﻿{
+  "lastItemCount": 26,
+  "lastPendingNewProjectCount": 1,
+  "libraryRoot": "E:\\Code\\CursorConfigManagerTauri2\\_bench_fixture\\library",
+  "note": "catalog.Load(force) + discovery.Scan(fixed root) + Merge + ScanAll (no WebView/IPC)",
+  "product": "wails2-headless",
+  "projectScanMaxDepth": 5,
+  "rounds": 3,
+  "roundsRaw": [
+    { "snapshotMs": 1.066, "scanPreviewMs": 25.248 },
+    { "snapshotMs": 0, "scanPreviewMs": 15.078 },
+    { "snapshotMs": 0.999, "scanPreviewMs": 14.245 }
+  ],
+  "scanPreviewMsMedian": 15.078,
+  "scanRoot": "E:\\Code\\CursorConfigManagerTauri2\\_bench_fixture\\scan-fixture",
+  "snapshotMsMedian": 0.999
+}

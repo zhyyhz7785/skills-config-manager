@@ -1,0 +1,9 @@
+[[permission]]
+identifier = "allow-scan-ingest"
+description = "Scan/Ingest + project discovery (M4)"
+commands.allow = [
+  "scan_and_ingest_preview",
+  "confirm_scan_build",
+  "scan_projects_preview",
+  "confirm_scan_projects"
+]

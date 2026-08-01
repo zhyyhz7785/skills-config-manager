@@ -1,0 +1,37 @@
+﻿{
+    "product":  "electron-main-headless",
+    "note":  "LibraryCatalogService.load + ProjectDiscovery.scan + SkillScanService.scanAll (no WebView/IPC)",
+    "rounds":  5,
+    "libraryRoot":  "E:\\Code\\CursorConfigManagerWails2\\_bench_fixture_heavy\\library",
+    "scanRoot":  "E:\\Code\\CursorConfigManagerWails2\\_bench_fixture_heavy\\scan-fixture",
+    "projectScanMaxDepth":  8,
+    "snapshotMsMedian":  42.816799999999944,
+    "scanPreviewMsMedian":  286.05330000000004,
+    "lastItemCount":  1005,
+    "lastPendingNewProjectCount":  40,
+    "roundsRaw":  [
+                      {
+                          "snapshotMs":  51.063499999999976,
+                          "scanPreviewMs":  467.3585
+                      },
+                      {
+                          "snapshotMs":  42.84769999999992,
+                          "scanPreviewMs":  289.3098000000001
+                      },
+                      {
+                          "snapshotMs":  42.816799999999944,
+                          "scanPreviewMs":  286.05330000000004
+                      },
+                      {
+                          "snapshotMs":  40.537199999999984,
+                          "scanPreviewMs":  273.8243
+                      },
+                      {
+                          "snapshotMs":  42.15470000000005,
+                          "scanPreviewMs":  277.1739
+                      }
+                  ],
+    "level":  "L2",
+    "fixtureRoot":  "E:\\Code\\CursorConfigManagerWails2\\_bench_fixture_heavy",
+    "catalogEntryCount":  1000
+}

@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-resolve-drag-paths"
+description = "Resolve entry file paths for OS drag-out"
+commands.allow = ["resolve_drag_file_paths"]

@@ -1,0 +1,10 @@
+[[permission]]
+identifier = "allow-deploy-withdraw"
+description = "Deploy / withdraw / unmanage / purgeMissing"
+commands.allow = [
+  "deploy",
+  "withdraw",
+  "withdraw_batch",
+  "unmanage",
+  "purge_missing_entries"
+]

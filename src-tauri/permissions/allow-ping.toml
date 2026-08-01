@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-ping"
+description = "Enables the ping command used by the P0 shell"
+commands.allow = ["ping"]

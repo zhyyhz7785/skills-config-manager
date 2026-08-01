@@ -1,0 +1,47 @@
+﻿[
+    {
+        "product":  "electron-win-unpacked",
+        "exe":  "E:\\Code\\CursorConfigManager\\release\\win-unpacked\\CursorConfigManager.exe",
+        "sizeBytes":  232351232,
+        "sizeMB":  221.59,
+        "rounds":  3,
+        "tHwndSecMedian":  0.504,
+        "tHwndSecRaw":  [
+                            0.735,
+                            0.504,
+                            0.458
+                        ],
+        "okCount":  3,
+        "metric":  "T0=Start-Process; T_hwnd=MainWindowHandle!=0 (approx first window)"
+    },
+    {
+        "product":  "tauri2-release",
+        "exe":  "E:\\Code\\CursorConfigManagerTauri2\\src-tauri\\target\\release\\ccm-tauri2.exe",
+        "sizeBytes":  6751744,
+        "sizeMB":  6.44,
+        "rounds":  3,
+        "tHwndSecMedian":  0.099,
+        "tHwndSecRaw":  [
+                            0.19,
+                            0.099,
+                            0.081
+                        ],
+        "okCount":  3,
+        "metric":  "T0=Start-Process; T_hwnd=MainWindowHandle!=0 (approx first window)"
+    },
+    {
+        "product":  "wails2-release",
+        "exe":  "E:\\Code\\CursorConfigManagerWails2\\build\\bin\\CursorConfigManagerWails2.exe",
+        "sizeBytes":  16572416,
+        "sizeMB":  15.8,
+        "rounds":  3,
+        "tHwndSecMedian":  0.768,
+        "tHwndSecRaw":  [
+                            1.001,
+                            0.767,
+                            0.768
+                        ],
+        "okCount":  3,
+        "metric":  "T0=Start-Process; T_hwnd=MainWindowHandle!=0 (approx first window)"
+    }
+]

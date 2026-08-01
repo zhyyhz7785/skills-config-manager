@@ -1,0 +1,83 @@
+{
+  "id": "sheet-mrx2hs6n",
+  "name": "Sheet1",
+  "sheetOrder": [
+    "sheet1"
+  ],
+  "sheets": {
+    "sheet1": {
+      "id": "sheet1",
+      "name": "Sheet1",
+      "rowCount": 6,
+      "columnCount": 3,
+      "cellData": {
+        "0": {
+          "0": {
+            "v": "层级"
+          },
+          "1": {
+            "v": "技术"
+          },
+          "2": {
+            "v": "说明"
+          }
+        },
+        "1": {
+          "0": {
+            "v": "桌面壳"
+          },
+          "1": {
+            "v": "Electron 42.5.0"
+          },
+          "2": {
+            "v": "对齐本机 hymd-code，复用 Electron Cache"
+          }
+        },
+        "2": {
+          "0": {
+            "v": "渲染 UI"
+          },
+          "1": {
+            "v": "React 19 + Vite 6 + TypeScript"
+          },
+          "2": {
+            "v": "AI 出活快；浅色 Fluent 观感"
+          }
+        },
+        "3": {
+          "0": {
+            "v": "主进程业务"
+          },
+          "1": {
+            "v": "Node fs + TypeScript services"
+          },
+          "2": {
+            "v": "自 WPF Services/ 移植；Move 语义"
+          }
+        },
+        "4": {
+          "0": {
+            "v": "包管理"
+          },
+          "1": {
+            "v": "npm"
+          },
+          "2": {
+            "v": "与 hymd 习惯一致"
+          }
+        },
+        "5": {
+          "0": {
+            "v": "历史对照"
+          },
+          "1": {
+            "v": "legacy-wpf/"
+          },
+          "2": {
+            "v": "原 .NET 8 WPF 半成品，不参与构建"
+          }
+        }
+      }
+    }
+  }
+}

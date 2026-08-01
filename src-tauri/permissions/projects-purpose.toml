@@ -1,0 +1,19 @@
+[[permission]]
+identifier = "allow-projects-purpose"
+description = "Projects CRUD + tags/purpose (M3 domain 5 MVP)"
+commands.allow = [
+  "create_project_container",
+  "edit_project",
+  "toggle_pin_project",
+  "reorder_project",
+  "inspect_project_for_delete",
+  "remove_project",
+  "open_project_cursor",
+  "open_project_root",
+  "edit_tags",
+  "set_entry_level",
+  "set_scope_global",
+  "set_scope_project",
+  "preview_suggested_purposes",
+  "apply_suggested_purposes"
+]

@@ -1,0 +1,17 @@
+﻿{
+  "product": "electron-main-headless",
+  "note": "LibraryCatalogService.load + ProjectDiscovery.scan + SkillScanService.scanAll (no WebView/IPC)",
+  "rounds": 3,
+  "libraryRoot": "E:\\Code\\CursorConfigManagerTauri2\\_bench_fixture\\library",
+  "scanRoot": "E:\\Code\\CursorConfigManagerTauri2\\_bench_fixture\\scan-fixture",
+  "projectScanMaxDepth": 5,
+  "snapshotMsMedian": 1.313,
+  "scanPreviewMsMedian": 18.128,
+  "lastItemCount": 26,
+  "lastPendingNewProjectCount": 1,
+  "roundsRaw": [
+    { "snapshotMs": 2.270, "scanPreviewMs": 49.800 },
+    { "snapshotMs": 1.313, "scanPreviewMs": 18.128 },
+    { "snapshotMs": 1.265, "scanPreviewMs": 16.712 }
+  ]
+}

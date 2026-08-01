@@ -1,0 +1,138 @@
+{
+  "id": "sheet-mrx2dbea",
+  "sheetOrder": [
+    "sheet1"
+  ],
+  "name": "Sheet1",
+  "appVersion": "0.25.1",
+  "locale": "zhCN",
+  "styles": {},
+  "sheets": {
+    "sheet1": {
+      "id": "sheet1",
+      "name": "Sheet1",
+      "rowCount": 5,
+      "columnCount": 3,
+      "cellData": {
+        "0": {
+          "0": {
+            "v": "依赖阿斯顿发斯蒂芬",
+            "t": 1
+          },
+          "1": {
+            "v": "最低版本"
+          },
+          "2": {
+            "v": "说明"
+          }
+        },
+        "1": {
+          "0": {
+            "v": "Node.js"
+          },
+          "1": {
+            "v": "20.x（推荐 22+）"
+          },
+          "2": {
+            "v": "20 需 npm run ensure-electron"
+          }
+        },
+        "2": {
+          "0": {
+            "v": "npm"
+          },
+          "1": {
+            "v": "随 Node"
+          },
+          "2": {
+            "v": "—"
+          }
+        },
+        "3": {
+          "0": {
+            "v": "Windows"
+          },
+          "1": {
+            "v": "10/11"
+          },
+          "2": {
+            "v": "当前开发与验证平台"
+          }
+        },
+        "4": {
+          "0": {
+            "v": "Electron"
+          },
+          "1": {
+            "v": "42.5.0（锁定）"
+          },
+          "2": {
+            "v": "可复用本机 hymd Cache"
+          }
+        }
+      },
+      "tabColor": "",
+      "hidden": 0,
+      "zoomRatio": 1,
+      "freeze": {
+        "xSplit": 0,
+        "ySplit": 0,
+        "startRow": -1,
+        "startColumn": -1
+      },
+      "scrollTop": 0,
+      "scrollLeft": 0,
+      "defaultColumnWidth": 88,
+      "defaultRowHeight": 24,
+      "mergeData": [],
+      "rowData": {},
+      "columnData": {
+        "0": {
+          "w": 137.3333282470703
+        },
+        "1": {
+          "w": 188.66677856445312
+        },
+        "2": {
+          "w": 260.6665954589844
+        }
+      },
+      "showGridlines": 1,
+      "rowHeader": {
+        "width": 46,
+        "hidden": 0
+      },
+      "columnHeader": {
+        "height": 20,
+        "hidden": 0
+      },
+      "rightToLeft": 0
+    }
+  },
+  "resources": [
+    {
+      "name": "SHEET_RANGE_PROTECTION_PLUGIN",
+      "data": ""
+    },
+    {
+      "name": "SHEET_AuthzIoMockService_PLUGIN",
+      "data": "{}"
+    },
+    {
+      "name": "SHEET_WORKSHEET_PROTECTION_PLUGIN",
+      "data": "{}"
+    },
+    {
+      "name": "SHEET_WORKSHEET_PROTECTION_POINT_PLUGIN",
+      "data": "{}"
+    },
+    {
+      "name": "SHEET_DEFINED_NAME_PLUGIN",
+      "data": "{}"
+    },
+    {
+      "name": "SHEET_RANGE_THEME_MODEL_PLUGIN",
+      "data": "{}"
+    }
+  ]
+}

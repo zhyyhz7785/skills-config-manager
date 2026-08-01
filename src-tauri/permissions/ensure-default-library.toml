@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-ensure-default-library"
+description = "Ensures default spike library root + empty catalog and settings"
+commands.allow = ["ensure_default_library"]

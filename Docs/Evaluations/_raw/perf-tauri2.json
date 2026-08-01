@@ -1,0 +1,26 @@
+﻿{
+    "note":  "run_perf_bench release example (domain only)",
+    "rounds":  3,
+    "lastPendingNewProjectCount":  1,
+    "projectScanMaxDepth":  5,
+    "scanPreviewMsMedian":  17.254,
+    "roundsRaw":  [
+                      {
+                          "scanPreviewMs":  16.715699999999998,
+                          "snapshotMs":  0.4819
+                      },
+                      {
+                          "scanPreviewMs":  17.2426,
+                          "snapshotMs":  0.5877
+                      },
+                      {
+                          "scanPreviewMs":  17.253999999999998,
+                          "snapshotMs":  0.6736
+                      }
+                  ],
+    "scanRoot":  "E:\\Code\\CursorConfigManagerTauri2\\_bench_fixture\\scan-fixture",
+    "lastItemCount":  27,
+    "libraryRoot":  "E:\\Code\\CursorConfigManagerTauri2\\_bench_fixture\\library",
+    "product":  "tauri2-headless",
+    "snapshotMsMedian":  0.674
+}

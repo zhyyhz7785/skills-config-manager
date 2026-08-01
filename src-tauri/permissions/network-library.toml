@@ -1,0 +1,12 @@
+[[permission]]
+identifier = "allow-network-library"
+description = "Network library (Plan/03): ensure/choose/fetch/check/promote"
+commands.allow = [
+  "ensure_default_network_library",
+  "choose_network_library_root",
+  "list_network_baseline_sources",
+  "fetch_network_source",
+  "check_network_updates",
+  "apply_network_cache_update",
+  "promote_network_to_library"
+]

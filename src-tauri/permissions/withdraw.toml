@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-withdraw"
+description = "Withdraw dual-copy entry: same-hash delete container copy or report content conflict"
+commands.allow = ["withdraw"]
