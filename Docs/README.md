@@ -20,11 +20,11 @@
 | 目录 | 用途 |
 |------|------|
 | [Research/](Research/) | 调研 |
-| [Learning/](Learning/) | 学习笔记 |
+| [Learning/](Learning/) | 学习笔记（含 [05 Pro 切片练习·网络库](Learning/05-Pro档长任务编排练习-网络库.md)） |
 | [Archive/](Archive/) | 归档（含旧 Electron 文档包，不进构建） |
 | [Plan/](Plan/) | 迁移计划 |
 | [Evaluations/](Evaluations/) | 双壳 + 三壳测评结案（E001–E007） |
 
 ---
 
-**版本**：v4.1 | **更新**：2026-07-31
+**版本**：v4.2 | **更新**：2026-08-01
