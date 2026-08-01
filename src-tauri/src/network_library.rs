@@ -533,15 +533,21 @@ pub fn fetch_network_source(
         return Err("请提供 Git URL 或基线 id".into());
     }
 
+    let lower = raw.to_ascii_lowercase();
+    let is_remote = lower.starts_with("http://")
+        || lower.starts_with("https://")
+        || raw.starts_with("git@")
+        || lower.starts_with("git://")
+        || lower.starts_with("file://");
+    let is_local_git = !is_remote
+        && Path::new(raw).exists()
+        && (Path::new(raw).is_dir() || lower.ends_with(".git"));
+
     let (source_id, source_label, url) = if let Some((id, lab, u)) =
         BASELINE_SOURCES.iter().find(|(id, _, _)| *id == raw)
     {
         ((*id).to_string(), (*lab).to_string(), (*u).to_string())
-    } else if raw.starts_with("http://")
-        || raw.starts_with("https://")
-        || raw.starts_with("git@")
-        || raw.starts_with("git://")
-    {
+    } else if is_remote || is_local_git {
         let id = slug_from_url(raw);
         let lab = label
             .map(|s| s.trim().to_string())
@@ -554,7 +560,10 @@ pub fn fetch_network_source(
     {
         ((*id).to_string(), (*lab).to_string(), (*u).to_string())
     } else {
-        return Err("无法识别源：请粘贴 Git URL，或选择基线 id（anthropics-skills / vercel-agent-skills）".into());
+        return Err(
+            "无法识别源：请粘贴 Git URL / 本地 Git 路径，或选择基线 id（anthropics-skills / vercel-agent-skills）"
+                .into(),
+        );
     };
 
     let cache_rel = format!("{NETWORK_CACHE_DIR}/{source_id}");
@@ -1250,6 +1259,83 @@ mod tests {
 
         // 步骤 7：网络 id 守卫（与 lib.rs 命令一致）
         assert!(is_network_entry_id(&net_id));
+    }
+
+    /// 五项验收「拉取」域路径：本地 bare 仓浅克隆 → 发现 net: 条目（不依赖外网）。
+    #[test]
+    fn acceptance_fetch_local_git_discovers_entries() {
+        use std::process::Command;
+
+        let dir = tempfile::tempdir().unwrap();
+        let net = dir.path().join("net").to_string_lossy().to_string();
+        let lib = dir.path().join("lib").to_string_lossy().to_string();
+        let work = dir.path().join("seed");
+        let bare = dir.path().join("bare.git");
+        ensure_network_layout(&net).unwrap();
+        ensure_library_layout(&lib).unwrap();
+
+        let skill = work.join("demo-skill");
+        fs::create_dir_all(&skill).unwrap();
+        fs::write(
+            skill.join("SKILL.md"),
+            "---\nname: demo-skill\n---\n# Demo\n",
+        )
+        .unwrap();
+
+        let run = |cwd: &Path, args: &[&str]| {
+            let out = Command::new("git")
+                .args(args)
+                .current_dir(cwd)
+                .env("GIT_AUTHOR_NAME", "ccm")
+                .env("GIT_AUTHOR_EMAIL", "ccm@local")
+                .env("GIT_COMMITTER_NAME", "ccm")
+                .env("GIT_COMMITTER_EMAIL", "ccm@local")
+                .output()
+                .expect("git");
+            assert!(
+                out.status.success(),
+                "git {:?} failed: {}",
+                args,
+                String::from_utf8_lossy(&out.stderr)
+            );
+        };
+        run(dir.path(), &["init", work.to_str().unwrap()]);
+        run(&work, &["add", "."]);
+        run(&work, &["commit", "-m", "seed"]);
+        run(
+            dir.path(),
+            &[
+                "clone",
+                "--bare",
+                work.to_str().unwrap(),
+                bare.to_str().unwrap(),
+            ],
+        );
+
+        let settings = AppSettings {
+            skills_library_root: lib,
+            library_root_configured: true,
+            network_library_root: net.clone(),
+            network_library_configured: true,
+            ..Default::default()
+        };
+        let res = fetch_network_source(
+            &settings,
+            bare.to_str().unwrap(),
+            Some("local-seed"),
+        )
+        .unwrap();
+        assert!(res.ok, "{}", res.message);
+        let items = network_list_items(&settings);
+        assert!(
+            items.iter().any(|i| i.entry_id.starts_with(NETWORK_ID_PREFIX)),
+            "expected net: entries, got {:?}",
+            items.iter().map(|i| &i.entry_id).collect::<Vec<_>>()
+        );
+        let id = items[0].entry_id.clone();
+        let detail = load_network_detail(&settings, &id);
+        assert!(detail.is_some(), "readonly detail");
+        assert!(detail.unwrap().0.contains("只读"));
     }
 
     #[test]
