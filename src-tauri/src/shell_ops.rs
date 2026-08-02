@@ -11,21 +11,32 @@ pub fn pick_folder(title: Option<String>) -> Result<Option<String>, String> {
     Ok(picked.map(|p| p.to_string_lossy().to_string()))
 }
 
+pub(crate) fn looks_like_http_url(t: &str) -> bool {
+    let lower = t.to_ascii_lowercase();
+    lower.starts_with("http://") || lower.starts_with("https://")
+}
+
 #[tauri::command]
 pub fn open_path(target: String) -> Result<(), String> {
     let t = target.trim();
     if t.is_empty() {
         return Err("路径为空".into());
     }
-    if !Path::new(t).exists() {
+    let is_url = looks_like_http_url(t);
+    if !is_url && !Path::new(t).exists() {
         return Err(format!("路径不存在: {t}"));
     }
     #[cfg(target_os = "windows")]
     {
-        Command::new("cmd")
-            .args(["/c", "start", "", t])
-            .spawn()
-            .map_err(|e| format!("open failed: {e}"))?;
+        let mut cmd = Command::new("cmd");
+        cmd.args(["/c", "start", "", t]);
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+        cmd.spawn().map_err(|e| format!("open failed: {e}"))?;
         return Ok(());
     }
     #[cfg(not(target_os = "windows"))]
@@ -64,5 +75,18 @@ pub fn reveal_in_folder(target: String) -> Result<(), String> {
             .spawn()
             .map_err(|e| format!("reveal failed: {e}"))?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn http_urls_skip_filesystem_exists_check() {
+        assert!(looks_like_http_url("https://github.com/addyosmani/agent-skills"));
+        assert!(looks_like_http_url("http://example.com"));
+        assert!(!looks_like_http_url(r"C:\Users\ZHY\CCM-NetworkLibrary"));
+        assert!(!looks_like_http_url("ftp://example.com"));
     }
 }

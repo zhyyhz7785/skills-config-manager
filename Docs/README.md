@@ -14,6 +14,7 @@
 | [03-实施与状态](03-实施与状态.md) | 双方 | 阶段与快照 |
 | [04-启动与测试](04-启动与测试.md) | 开发者 | `tauri:dev` / `verify:tauri` / `bench:perf` |
 | [05-经验教训](05-经验教训.md) | 双方 | 多轮坑 |
+| [06-帮助文档](06-帮助文档.md) | 最终用户 | 五分钟路径与功能操作（Plan/05 W2-M2） |
 
 ## 分类目录
 
@@ -22,9 +23,9 @@
 | [Research/](Research/) | 调研 |
 | [Learning/](Learning/) | 学习笔记（含 [05 Pro 切片练习·网络库](Learning/05-Pro档长任务编排练习-网络库.md)） |
 | [Archive/](Archive/) | 归档（含旧 Electron 文档包，不进构建） |
-| [Plan/](Plan/) | 迁移计划 |
-| [Evaluations/](Evaluations/) | 双壳 + 三壳测评结案（E001–E007） |
+| [Plan/](Plan/) | 执行计划（含 [05 错位超越](Plan/05-错位超越SkillsManager-2026-08-01.md)） |
+| [Evaluations/](Evaluations/) | 测评结案（E001–E009；含 vs Skills Manager / 开源决策） |
 
 ---
 
-**版本**：v4.2 | **更新**：2026-08-01
+**版本**：v4.3 | **更新**：2026-08-01

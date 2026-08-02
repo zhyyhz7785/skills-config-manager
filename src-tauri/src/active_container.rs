@@ -12,7 +12,7 @@ fn dirs_home() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-/// Global tool config root: `~/.cursor` | `~/.claude` | `~/.codex`.
+/// Global tool config root under the user profile (Plan/05 W2-S3a 探测表).
 pub fn user_global_tool_root(tool: &str) -> String {
     let Some(home) = dirs_home() else {
         return String::new();
@@ -20,6 +20,10 @@ pub fn user_global_tool_root(tool: &str) -> String {
     let name = match tool.trim().to_lowercase().as_str() {
         "claude" => ".claude",
         "codex" => ".codex",
+        "gemini" => ".gemini",
+        "opencode" => ".opencode",
+        "windsurf" => ".windsurf",
+        "continue" | "continuedev" => ".continue",
         _ => ".cursor",
     };
     home.join(name).to_string_lossy().to_string()
@@ -44,7 +48,17 @@ pub fn is_user_global_container_root(container_root: &str) -> bool {
         .file_name()
         .map(|s| s.to_string_lossy().to_lowercase())
         .unwrap_or_default();
-    matches!(base.as_str(), ".cursor" | ".claude" | ".codex" | ".agents")
+    matches!(
+        base.as_str(),
+        ".cursor"
+            | ".claude"
+            | ".codex"
+            | ".agents"
+            | ".gemini"
+            | ".opencode"
+            | ".windsurf"
+            | ".continue"
+    )
 }
 
 /// Electron `getActiveContainerRoot`: global → focus workspace container; project → `{root}/.cursor`.
@@ -109,7 +123,17 @@ pub fn is_path_in_active_container_tree(
             .file_name()
             .map(|s| s.to_string_lossy().to_lowercase())
             .unwrap_or_default();
-        if base == ".cursor" || base == ".claude" || base == ".codex" || base == ".agents" {
+        if matches!(
+            base.as_str(),
+            ".cursor"
+                | ".claude"
+                | ".codex"
+                | ".agents"
+                | ".gemini"
+                | ".opencode"
+                | ".windsurf"
+                | ".continue"
+        ) {
             Path::new(container_root.trim())
                 .parent()
                 .map(|p| p.to_string_lossy().to_string())

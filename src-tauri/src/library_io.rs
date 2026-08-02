@@ -199,6 +199,10 @@ pub fn save_detail_markdown(
 
     fs::write(&full, content.as_bytes()).map_err(|e| format!("write {}: {e}", full.display()))?;
 
+    if side != "container" {
+        let _ = crate::network_customization::record_after_library_save(library_root, id, content);
+    }
+
     Ok(SaveLibraryFileResult {
         ok: true,
         unchanged: false,

@@ -161,13 +161,118 @@ async function dispatch(method: IpcMethod, args: Json = {}): Promise<IpcEnvelope
           snapshot: AppSnapshot
           conflicts?: unknown[]
           promoted?: number
-        }>('promote_network_to_library', { entryIds, resolutions })
+          blocked?: boolean
+          security?: unknown
+        }>('promote_network_to_library', {
+          entryIds,
+          resolutions,
+          forceSecurityOverride: Boolean(args.forceSecurityOverride),
+        })
         return {
           ok: result.ok,
           message: result.message,
           snapshot: result.snapshot,
           data: result,
         }
+      }
+
+      case 'setNetworkPin': {
+        const snapshot = await tauriInvoke<AppSnapshot>('set_network_pin', {
+          section: String(args.section ?? ''),
+          id: String(args.id ?? ''),
+          pinned: Boolean(args.pinned),
+        })
+        return okSnap(snapshot, '置顶已更新')
+      }
+
+      case 'setNetworkAgentRepoOverride': {
+        const snapshot = await tauriInvoke<AppSnapshot>('set_network_agent_repo_override', {
+          agentKey: String(args.agentKey ?? ''),
+          url: String(args.url ?? ''),
+        })
+        return okSnap(snapshot, '官方仓覆盖已更新')
+      }
+
+      case 'setNetworkIntendedLevel': {
+        const entryIds = Array.isArray(args.entryIds)
+          ? (args.entryIds as unknown[]).map((x) => String(x))
+          : []
+        const result = await tauriInvoke<{
+          ok: boolean
+          message: string
+          snapshot: AppSnapshot
+        }>('set_network_intended_level', {
+          entryIds,
+          level: String(args.level ?? ''),
+        })
+        return okSnap(result.snapshot, result.message, result)
+      }
+
+      case 'evaluateNetworkSecurity': {
+        const entryIds = Array.isArray(args.entryIds)
+          ? (args.entryIds as unknown[]).map((x) => String(x))
+          : []
+        const result = await tauriInvoke<{
+          ok: boolean
+          message: string
+          snapshot: AppSnapshot
+        }>('evaluate_network_security', { entryIds })
+        return okSnap(result.snapshot, result.message, result)
+      }
+
+      case 'fetchNetworkNavSource': {
+        const result = await tauriInvoke<{
+          ok: boolean
+          message: string
+          snapshot: AppSnapshot
+        }>('fetch_network_nav_source', {
+          kind: String(args.kind ?? ''),
+          id: String(args.id ?? ''),
+        })
+        return okSnap(result.snapshot, result.message, result)
+      }
+
+      case 'reapplyNetworkCustomization': {
+        const result = await tauriInvoke<{
+          ok: boolean
+          message: string
+          snapshot: AppSnapshot
+        }>('reapply_network_customization', {
+          entryId: String(args.entryId ?? ''),
+          networkEntryId: String(args.networkEntryId ?? ''),
+          mode: String(args.mode ?? 'skip'),
+        })
+        return okSnap(result.snapshot, result.message, result)
+      }
+
+      case 'refreshNetworkHeat': {
+        const result = await tauriInvoke<{
+          ok: boolean
+          message: string
+          snapshot: AppSnapshot
+        }>('refresh_network_heat')
+        return okSnap(result.snapshot, result.message, result)
+      }
+
+      case 'searchSkillsSh': {
+        const result = await tauriInvoke<{
+          ok: boolean
+          message: string
+          snapshot: AppSnapshot
+          searchItems?: { name: string; url: string; repo: string }[]
+        }>('search_skills_sh', { q: String(args.q ?? '') })
+        return okSnap(result.snapshot, result.message, result)
+      }
+
+      case 'cleanupNetworkCache': {
+        const result = await tauriInvoke<{
+          ok: boolean
+          message: string
+          snapshot: AppSnapshot
+        }>('cleanup_network_cache', {
+          unusedOnly: args.unusedOnly === undefined ? true : Boolean(args.unusedOnly),
+        })
+        return okSnap(result.snapshot, result.message, result)
       }
 
       case 'updateAppSettings': {
@@ -183,6 +288,12 @@ async function dispatch(method: IpcMethod, args: Json = {}): Promise<IpcEnvelope
             typeof args.autoScanProjectsOnStartup === 'boolean'
               ? args.autoScanProjectsOnStartup
               : null,
+          networkUpdateCheckIntervalMinutes:
+            typeof args.networkUpdateCheckIntervalMinutes === 'number'
+              ? args.networkUpdateCheckIntervalMinutes
+              : null,
+          skillsShApiToken:
+            typeof args.skillsShApiToken === 'string' ? args.skillsShApiToken : null,
         })
         return okSnap(snapshot, '设置已保存')
       }
@@ -382,6 +493,65 @@ async function dispatch(method: IpcMethod, args: Json = {}): Promise<IpcEnvelope
           message: string
           snapshot: AppSnapshot
         }>('deploy', { entryIds })
+        return {
+          ok: result.ok,
+          message: result.message,
+          data: {
+            succeeded: result.succeeded,
+            failed: result.failed,
+            errors: result.errors,
+          },
+          snapshot: result.snapshot,
+        }
+      }
+
+      case 'previewLibraryDrift': {
+        const result = await tauriInvoke<{
+          ok: boolean
+          message: string
+          items: Array<{ entryId: string; workspaceId: string; reason: string }>
+        }>('preview_library_drift')
+        return { ok: result.ok, message: result.message, data: result }
+      }
+
+      case 'listDeployRecipes': {
+        const recipes = await tauriInvoke<
+          Array<{ id: string; name: string; entryIds: string[]; workspaceId: string }>
+        >('list_deploy_recipes')
+        return { ok: true, data: { recipes } }
+      }
+
+      case 'saveDeployRecipe': {
+        const recipe = {
+          id: String(args.id ?? ''),
+          name: String(args.name ?? ''),
+          entryIds: Array.isArray(args.entryIds)
+            ? (args.entryIds as unknown[]).map((x) => String(x))
+            : [],
+          workspaceId: String(args.workspaceId ?? ''),
+        }
+        const recipes = await tauriInvoke<
+          Array<{ id: string; name: string; entryIds: string[]; workspaceId: string }>
+        >('save_deploy_recipe', { recipe })
+        return { ok: true, message: '配方已保存', data: { recipes } }
+      }
+
+      case 'deleteDeployRecipe': {
+        const recipes = await tauriInvoke<
+          Array<{ id: string; name: string; entryIds: string[]; workspaceId: string }>
+        >('delete_deploy_recipe', { recipeId: String(args.recipeId ?? '') })
+        return { ok: true, message: '配方已删除', data: { recipes } }
+      }
+
+      case 'applyDeployRecipe': {
+        const result = await tauriInvoke<{
+          ok: boolean
+          succeeded: number
+          failed: number
+          errors: string[]
+          message: string
+          snapshot: AppSnapshot
+        }>('apply_deploy_recipe', { recipeId: String(args.recipeId ?? '') })
         return {
           ok: result.ok,
           message: result.message,

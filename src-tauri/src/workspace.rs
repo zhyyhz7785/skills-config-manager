@@ -1,11 +1,14 @@
-//! Global workspace model (Plan/04): Agent/tool slots with 1:1 container roots.
+//! Global workspace model (Plan/04 + Plan/05 W2-S3a): Agent/tool slots with 1:1 container roots.
 
 use serde::{Deserialize, Serialize};
 
 use crate::active_container::user_global_tool_root;
 use crate::settings::AppSettings;
 
-pub const BUILTIN_WORKSPACE_IDS: &[&str] = &["cursor", "claude", "codex"];
+/// Built-in probe + deploy slots (5～8 常用工具；非市场矩阵).
+pub const BUILTIN_WORKSPACE_IDS: &[&str] = &[
+    "cursor", "claude", "codex", "gemini", "opencode", "windsurf", "continue",
+];
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "PascalCase")]
@@ -26,20 +29,21 @@ fn default_true() -> bool {
 
 impl WorkspaceConfig {
     pub fn builtin(id: &str) -> Self {
-        let (display_name, container_root) = match id {
-            "claude" => ("Claude".into(), user_global_tool_root("claude")),
-            "codex" => ("Codex".into(), user_global_tool_root("codex")),
-            _ => ("Cursor".into(), user_global_tool_root("cursor")),
+        let nid = normalize_workspace_id(id).unwrap_or("cursor");
+        let display_name = match nid {
+            "claude" => "Claude",
+            "codex" => "Codex",
+            "gemini" => "Gemini CLI",
+            "opencode" => "OpenCode",
+            "windsurf" => "Windsurf",
+            "continue" => "Continue",
+            _ => "Cursor",
         };
         Self {
-            id: if matches!(id, "claude" | "codex") {
-                id.into()
-            } else {
-                "cursor".into()
-            },
+            id: nid.into(),
             enabled: true,
-            display_name,
-            container_root,
+            display_name: display_name.into(),
+            container_root: user_global_tool_root(nid),
         }
     }
 }
@@ -49,6 +53,10 @@ pub fn normalize_workspace_id(id: &str) -> Option<&'static str> {
         "cursor" => Some("cursor"),
         "claude" => Some("claude"),
         "codex" => Some("codex"),
+        "gemini" => Some("gemini"),
+        "opencode" => Some("opencode"),
+        "windsurf" => Some("windsurf"),
+        "continue" | "continuedev" => Some("continue"),
         _ => None,
     }
 }
@@ -150,8 +158,6 @@ pub fn ensure_workspaces_migrated(settings: &mut AppSettings) -> bool {
         settings.selected_global_tool = focus.into();
         changed = true;
     }
-    // Focus must be a known id; prefer keeping focus even if not visible (deploy still uses it).
-    // If focus workspace is disabled, retarget to default/visible.
     let focus_enabled = settings
         .workspaces
         .iter()
@@ -170,7 +176,6 @@ pub fn ensure_workspaces_migrated(settings: &mut AppSettings) -> bool {
         }
     }
 
-    // Ensure default is enabled.
     let default_id = settings.default_workspace_id.clone();
     let default_ok = settings
         .workspaces
@@ -271,8 +276,9 @@ mod tests {
         assert!(ensure_workspaces_migrated(&mut s));
         assert_eq!(s.default_workspace_id, "claude");
         assert_eq!(s.visible_workspace_ids, vec!["claude".to_string()]);
-        assert_eq!(s.workspaces.len(), 3);
+        assert_eq!(s.workspaces.len(), BUILTIN_WORKSPACE_IDS.len());
         assert!(s.workspaces.iter().any(|w| w.id == "claude" && w.enabled));
+        assert!(s.workspaces.iter().any(|w| w.id == "gemini"));
         let root = resolve_workspace_container_root(&s, "claude");
         assert!(root.to_lowercase().ends_with(".claude"), "{root}");
     }
@@ -285,5 +291,17 @@ mod tests {
         assert_eq!(s.visible_workspace_ids, vec!["cursor".to_string()]);
         assert_eq!(list_visible_workspaces(&s).len(), 1);
         assert_eq!(list_visible_workspaces(&s)[0].id, "cursor");
+        assert!(s.workspaces.len() >= 7);
+    }
+
+    #[test]
+    fn dual_visible_workspaces_list_two_sections() {
+        let mut s = AppSettings::default();
+        ensure_workspaces_migrated(&mut s);
+        s.visible_workspace_ids = vec!["cursor".into(), "claude".into()];
+        let vis = list_visible_workspaces(&s);
+        assert_eq!(vis.len(), 2);
+        assert_eq!(vis[0].id, "cursor");
+        assert_eq!(vis[1].id, "claude");
     }
 }

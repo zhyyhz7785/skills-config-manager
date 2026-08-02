@@ -1004,6 +1004,64 @@ mod tests {
         assert!(!ctr.contains("dirty"));
     }
 
+    /// 假冲突回归：同名且内容哈希相同 → 冲突列表必须为 0（不得弹窗）。
+    #[test]
+    fn identical_hash_is_not_false_conflict() {
+        let dir = tempfile::tempdir().unwrap();
+        let lib = dir.path().to_string_lossy().to_string();
+        ensure_library_layout(&lib).unwrap();
+        let proj = dir.path().join("SameHashProj");
+        let container = proj.join(".cursor");
+        fs::create_dir_all(container.join("skills/twin")).unwrap();
+        fs::create_dir_all(dir.path().join("skills/twin")).unwrap();
+        let body = b"# twin\nsame bytes both sides\n";
+        fs::write(container.join("skills/twin/SKILL.md"), body).unwrap();
+        fs::write(dir.path().join("skills/twin/SKILL.md"), body).unwrap();
+        let deployed = container
+            .join("skills/twin/SKILL.md")
+            .to_string_lossy()
+            .to_string();
+        use crate::catalog::{upsert_project, CatalogProject};
+        upsert_project(
+            &lib,
+            CatalogProject {
+                id: "shp".into(),
+                name: "SameHashProj".into(),
+                root_path: proj.to_string_lossy().to_string(),
+                category: "Cursor项目".into(),
+                pinned: true,
+            },
+        )
+        .unwrap();
+        upsert_entry(
+            &lib,
+            CatalogEntry {
+                id: "twin".into(),
+                kind: "skill".into(),
+                library_path: "skills/twin/SKILL.md".into(),
+                is_in_library: true,
+                deployed_path: deployed,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let settings = AppSettings {
+            skills_library_root: lib,
+            library_root_configured: true,
+            nav_kind: "project".into(),
+            selected_project_id: Some("shp".into()),
+            ..Default::default()
+        };
+        let r = refresh_with_conflict_check(&settings).unwrap();
+        assert_eq!(
+            r.conflicts.len(),
+            0,
+            "identical content must not surface as conflict: {}",
+            r.message
+        );
+    }
+
     #[test]
     fn no_conflict_reconciles_clean() {
         let dir = tempfile::tempdir().unwrap();

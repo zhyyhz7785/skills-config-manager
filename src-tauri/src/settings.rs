@@ -27,6 +27,18 @@ pub struct AppSettings {
     #[serde(default)]
     pub network_library_configured: bool,
     #[serde(default)]
+    pub network_official_pinned_ids: Vec<String>,
+    #[serde(default)]
+    pub network_popular_pinned_ids: Vec<String>,
+    #[serde(default)]
+    pub network_agent_repo_overrides: std::collections::HashMap<String, String>,
+    /// 0 = disabled; minutes between checkNetworkUpdates only (never apply).
+    #[serde(default)]
+    pub network_update_check_interval_minutes: i32,
+    /// Optional skills.sh Bearer token (empty = disabled). Never log.
+    #[serde(default)]
+    pub skills_sh_api_token: String,
+    #[serde(default)]
     pub active_container_root: String,
     #[serde(default)]
     pub backup_root: String,
@@ -114,6 +126,11 @@ impl Default for AppSettings {
             library_root_configured: false,
             network_library_root: String::new(),
             network_library_configured: false,
+            network_official_pinned_ids: vec![],
+            network_popular_pinned_ids: vec![],
+            network_agent_repo_overrides: std::collections::HashMap::new(),
+            network_update_check_interval_minutes: 0,
+            skills_sh_api_token: String::new(),
             active_container_root: String::new(),
             backup_root: String::new(),
             purpose_taxonomy: vec![],
@@ -167,6 +184,7 @@ pub fn load_settings() -> Result<AppSettings, String> {
     // In-memory only: avoid write-on-read races in tests / concurrent loads.
     // Persistence happens on the next save_settings (set_nav / settings UI / etc.).
     let _ = ensure_workspaces_migrated(&mut s);
+    let _ = crate::network_catalog::ensure_network_pin_defaults(&mut s);
     Ok(s)
 }
 

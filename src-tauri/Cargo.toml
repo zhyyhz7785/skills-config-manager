@@ -1,6 +1,6 @@
 [package]
 name = "ccm-tauri2"
-version = "0.1.0"
+version = "0.2.0"
 description = "CCM Tauri2 desktop shell"
 authors = ["CCM"]
 edition = "2021"
@@ -8,6 +8,10 @@ edition = "2021"
 [lib]
 name = "ccm_tauri2_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "ccm"
+path = "src/bin/ccm.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

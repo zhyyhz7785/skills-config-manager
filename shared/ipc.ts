@@ -75,9 +75,23 @@ export type IpcMethod =
   | 'checkNetworkUpdates'
   | 'applyNetworkCacheUpdate'
   | 'promoteNetworkToLibrary'
+  | 'setNetworkPin'
+  | 'setNetworkAgentRepoOverride'
+  | 'setNetworkIntendedLevel'
+  | 'evaluateNetworkSecurity'
+  | 'fetchNetworkNavSource'
+  | 'reapplyNetworkCustomization'
+  | 'refreshNetworkHeat'
+  | 'searchSkillsSh'
+  | 'cleanupNetworkCache'
   | 'setWorkspaceVisibility'
   | 'setDefaultWorkspace'
   | 'updateWorkspaceConfig'
+  | 'previewLibraryDrift'
+  | 'listDeployRecipes'
+  | 'saveDeployRecipe'
+  | 'deleteDeployRecipe'
+  | 'applyDeployRecipe'
 
 export interface IpcEnvelope<T = unknown> {
   ok: boolean
@@ -132,6 +146,26 @@ export interface LibraryListItemDto {
   isInActiveUse?: boolean
   /** 前端即时搜索用：id/remark/description/trigger/path 拼接 */
   searchText?: string
+  /** 网络库行：源 id / URL / 热度 / 意向层级 / 安全 / 更新标记 */
+  sourceId?: string | null
+  sourceUrl?: string | null
+  heatLabel?: string | null
+  intendedLevel?: string | null
+  securityLevel?: string | null
+  updateAvailable?: boolean | null
+}
+
+/** 网络侧栏：官方 Agent 或 GitHub 热门源节点 */
+export interface NetworkNavNodeDto {
+  id: string
+  kind: string
+  displayName: string
+  pinned: boolean
+  primaryRepoUrl: string
+  baselineId?: string | null
+  heatLabel: string
+  hasDefaultRepo: boolean
+  cachedCount: number
 }
 
 /** Plan/04 工作区配置（快照侧） */
@@ -249,6 +283,12 @@ export interface AppSnapshot {
   networkLibraryHeader: string
   isNetworkLibraryConfigured: boolean
   networkLibraryRootDisplay: string
+  networkOfficialNav?: NetworkNavNodeDto[]
+  networkPopularNav?: NetworkNavNodeDto[]
+  /** 0=关；分钟；定时仅 checkNetworkUpdates */
+  networkUpdateCheckIntervalMinutes?: number
+  /** 是否已配置 skills.sh API Key（不暴露密钥） */
+  skillsShConfigured?: boolean
   inContainerSummary: string
   inLibrarySummary: string
   inLibraryOwnSummary: string

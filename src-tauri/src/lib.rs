@@ -2,21 +2,28 @@ mod active_container;
 mod backup;
 mod catalog;
 mod catalog_backup;
+pub mod cli_api;
 mod conflict_preview;
 mod content_sync;
 mod rule_layout;
 mod deploy;
 mod drag_paths;
+mod drift;
 mod dual_copy;
 mod hash;
 mod library_io;
 mod list_cluster;
 mod manage;
+mod network_catalog;
+mod network_customization;
 mod network_library;
+mod network_p2;
+mod network_security;
 mod open_entries;
 mod path_guard;
 mod project_discovery;
 mod projects;
+mod recipes;
 mod refresh;
 mod scan_ingest;
 mod session;
@@ -229,10 +236,96 @@ fn apply_network_cache_update(
 fn promote_network_to_library(
     entry_ids: Vec<String>,
     resolutions: Option<Vec<ConflictResolution>>,
+    force_security_override: Option<bool>,
 ) -> Result<network_library::NetworkOpResult, String> {
     let settings = load_settings()?;
     let res = resolutions.unwrap_or_default();
-    network_library::promote_network_to_library(&settings, &entry_ids, &res)
+    network_library::promote_network_to_library(
+        &settings,
+        &entry_ids,
+        &res,
+        force_security_override.unwrap_or(false),
+    )
+}
+
+#[tauri::command]
+fn set_network_pin(
+    section: String,
+    id: String,
+    pinned: bool,
+) -> Result<AppSnapshotSubset, String> {
+    let mut settings = load_settings()?;
+    network_library::set_network_pin(&mut settings, &section, &id, pinned)
+}
+
+#[tauri::command]
+fn set_network_agent_repo_override(
+    agent_key: String,
+    url: String,
+) -> Result<AppSnapshotSubset, String> {
+    let mut settings = load_settings()?;
+    network_library::set_network_agent_repo_override(&mut settings, &agent_key, &url)
+}
+
+#[tauri::command]
+fn set_network_intended_level(
+    entry_ids: Vec<String>,
+    level: String,
+) -> Result<network_library::NetworkOpResult, String> {
+    let settings = load_settings()?;
+    network_library::set_network_intended_level(&settings, &entry_ids, &level)
+}
+
+#[tauri::command]
+fn evaluate_network_security(
+    entry_ids: Vec<String>,
+) -> Result<network_library::NetworkOpResult, String> {
+    let settings = load_settings()?;
+    network_library::evaluate_network_security(&settings, &entry_ids)
+}
+
+#[tauri::command]
+fn fetch_network_nav_source(
+    kind: String,
+    id: String,
+) -> Result<network_library::NetworkOpResult, String> {
+    let settings = load_settings()?;
+    network_library::fetch_network_nav_source(&settings, &kind, &id)
+}
+
+#[tauri::command]
+fn reapply_network_customization(
+    entry_id: String,
+    network_entry_id: String,
+    mode: String,
+) -> Result<network_library::NetworkOpResult, String> {
+    let settings = load_settings()?;
+    network_library::reapply_network_customization(
+        &settings,
+        &entry_id,
+        &network_entry_id,
+        &mode,
+    )
+}
+
+#[tauri::command]
+fn refresh_network_heat() -> Result<network_library::NetworkOpResult, String> {
+    let settings = load_settings()?;
+    network_p2::refresh_network_heat(&settings)
+}
+
+#[tauri::command]
+fn search_skills_sh(q: String) -> Result<network_library::NetworkOpResult, String> {
+    let settings = load_settings()?;
+    network_p2::search_skills_sh(&settings, &q)
+}
+
+#[tauri::command]
+fn cleanup_network_cache(
+    unused_only: Option<bool>,
+) -> Result<network_library::NetworkOpResult, String> {
+    let settings = load_settings()?;
+    network_p2::cleanup_network_cache(&settings, unused_only.unwrap_or(true))
 }
 
 #[tauri::command]
@@ -241,10 +334,19 @@ fn update_app_settings(
     project_scan_roots: Option<Vec<String>>,
     project_scan_max_depth: Option<i32>,
     auto_scan_projects_on_startup: Option<bool>,
+    network_update_check_interval_minutes: Option<i32>,
+    skills_sh_api_token: Option<String>,
 ) -> Result<AppSnapshotSubset, String> {
     let mut settings = load_settings()?;
     if let Some(b) = backup_root {
         settings.backup_root = project_discovery::to_display_path(b.trim());
+    }
+    if let Some(mins) = network_update_check_interval_minutes {
+        settings.network_update_check_interval_minutes = mins.max(0);
+    }
+    if let Some(token) = skills_sh_api_token {
+        // Empty string clears; never log token.
+        settings.skills_sh_api_token = token;
     }
     if let Some(roots) = project_scan_roots {
         let mut cleaned = Vec::new();
@@ -557,6 +659,38 @@ fn deploy(entry_ids: Vec<String>) -> Result<DeployResult, String> {
 }
 
 #[tauri::command]
+fn preview_library_drift() -> Result<drift::DriftReportDto, String> {
+    let settings = load_settings()?;
+    drift::preview_library_drift(&settings)
+}
+
+#[tauri::command]
+fn list_deploy_recipes() -> Result<Vec<recipes::DeployRecipe>, String> {
+    let settings = load_settings()?;
+    recipes::list_deploy_recipes(&settings)
+}
+
+#[tauri::command]
+fn save_deploy_recipe(recipe: recipes::DeployRecipe) -> Result<Vec<recipes::DeployRecipe>, String> {
+    let settings = load_settings()?;
+    recipes::save_deploy_recipe(&settings, recipe)
+}
+
+#[tauri::command]
+fn delete_deploy_recipe(recipe_id: String) -> Result<Vec<recipes::DeployRecipe>, String> {
+    let settings = load_settings()?;
+    recipes::delete_deploy_recipe(&settings, &recipe_id)
+}
+
+#[tauri::command]
+fn apply_deploy_recipe(recipe_id: String) -> Result<DeployResult, String> {
+    let mut settings = load_settings()?;
+    let r = recipes::apply_deploy_recipe(&mut settings, &recipe_id)?;
+    save_settings(&settings)?;
+    Ok(r)
+}
+
+#[tauri::command]
 fn withdraw_batch(
     entry_ids: Vec<String>,
     resolutions: Option<Vec<ConflictResolution>>,
@@ -830,6 +964,15 @@ pub fn run() {
             check_network_updates,
             apply_network_cache_update,
             promote_network_to_library,
+            set_network_pin,
+            set_network_agent_repo_override,
+            set_network_intended_level,
+            evaluate_network_security,
+            fetch_network_nav_source,
+            reapply_network_customization,
+            refresh_network_heat,
+            search_skills_sh,
+            cleanup_network_cache,
             update_app_settings,
             reset_catalog,
             list_catalog_backups,
@@ -845,6 +988,11 @@ pub fn run() {
             set_purpose_domain_filter,
             set_ui_layout,
             deploy,
+            preview_library_drift,
+            list_deploy_recipes,
+            save_deploy_recipe,
+            delete_deploy_recipe,
+            apply_deploy_recipe,
             withdraw,
             withdraw_batch,
             unmanage,
@@ -1000,6 +1148,8 @@ mod p1_flow_tests {
             ]),
             Some(7),
             Some(true),
+            None,
+            None,
         )
         .unwrap();
 

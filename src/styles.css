@@ -2403,3 +2403,155 @@ button.danger {
   padding: 16px;
   color: var(--text-muted);
 }
+
+/* 网络货架：本地 / 网络切换 + 工作台 */
+.nav-shelf-toggle {
+  display: flex;
+  gap: 4px;
+  padding: 8px 8px 4px;
+}
+.nav-shelf-toggle button {
+  flex: 1;
+  height: 26px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.nav-shelf-toggle button.active {
+  color: var(--text);
+  border-color: var(--accent, #3b82f6);
+  background: var(--bg);
+}
+.network-nav {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.net-nav-ops {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px 8px;
+}
+.net-nav-ops button {
+  font-size: 11px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.net-nav-ops button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.network-nav-path {
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.net-nav-row {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding-right: 4px;
+}
+.net-pin-btn {
+  width: 22px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.net-nav-main {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 4px 4px;
+  cursor: pointer;
+  color: inherit;
+}
+.net-nav-name {
+  display: block;
+  font-size: 12px;
+}
+.net-nav-meta {
+  display: block;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.net-general-toggle {
+  text-align: left;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.network-workbench {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+.net-wb-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.net-wb-selected {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.net-wb-toolbar button,
+.net-wb-level select {
+  height: 26px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  border-radius: 2px;
+  padding: 0 8px;
+}
+.net-wb-level {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+.net-wb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.net-wb-table th,
+.net-wb-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+.net-wb-table tr.is-selected {
+  background: color-mix(in srgb, var(--accent, #3b82f6) 16%, transparent);
+}
+.net-wb-table .sec-block {
+  color: #b91c1c;
+}
+.net-wb-table .sec-warn {
+  color: #b45309;
+}
+.net-wb-table .sec-pass {
+  color: #15803d;
+}

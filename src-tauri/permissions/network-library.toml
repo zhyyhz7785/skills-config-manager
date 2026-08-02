@@ -8,5 +8,14 @@ commands.allow = [
   "fetch_network_source",
   "check_network_updates",
   "apply_network_cache_update",
-  "promote_network_to_library"
+  "promote_network_to_library",
+  "set_network_pin",
+  "set_network_agent_repo_override",
+  "set_network_intended_level",
+  "evaluate_network_security",
+  "fetch_network_nav_source",
+  "reapply_network_customization",
+  "refresh_network_heat",
+  "search_skills_sh",
+  "cleanup_network_cache"
 ]

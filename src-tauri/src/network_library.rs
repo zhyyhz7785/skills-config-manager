@@ -8,18 +8,37 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::catalog::{
-    ensure_library_layout, load_catalog, upsert_entry, CatalogEntry, CatalogOrigin,
+    ensure_library_layout, get_entry_tags, load_catalog, set_entry_tags, upsert_entry, CatalogEntry,
+    CatalogOrigin,
 };
 use crate::content_sync::{
     resolve_comparable_content_path, resolve_library_main_dest, sync_main_file,
     verify_content_hash_match,
 };
 use crate::hash::hash_path_auto;
+use crate::network_catalog::{
+    build_network_nav, heat_for_source_id, load_heat_cache, resolve_agent_repo, NetworkNavNodeDto,
+    POPULAR_SOURCES,
+};
+use crate::network_customization::{
+    get_provenance, load_customization, reapply_customization_on_text, seed_baseline_on_promote,
+    set_provenance, update_entry_provenance_hash, write_merged_to_library_entry, NetworkProvenance,
+    ReapplyHintDto,
+};
+use crate::network_security::{evaluate_path, SecurityReport};
 use crate::path_guard::resolve_library_safe_path;
 use crate::project_discovery::{normalize_path, to_display_path};
 use crate::settings::AppSettings;
 use crate::snapshot::{build_snapshot_subset, AppSnapshotSubset, LibraryListItemDto};
 use crate::withdraw::{path_conflict_dto, ConflictResolution, PathConflictDto};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsShItemDto {
+    pub name: String,
+    pub url: String,
+    pub repo: String,
+}
 
 pub const NETWORK_INDEX_FILE: &str = "network-index.json";
 pub const NETWORK_CACHE_DIR: &str = "cache";
@@ -98,6 +117,10 @@ pub struct NetworkEntry {
     pub summary: String,
     #[serde(default)]
     pub license: String,
+    #[serde(default)]
+    pub intended_level: String,
+    #[serde(default)]
+    pub security_level: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -120,6 +143,22 @@ pub struct NetworkOpResult {
     pub promoted: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub update_available: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub security: Option<SecurityReport>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reapply_hints: Option<Vec<ReapplyHintDto>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blocked: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub search_items: Option<Vec<SkillsShItemDto>>,
+}
+
+/// Public wrappers for sibling modules (network_p2).
+pub fn require_network_root_pub(settings: &AppSettings) -> Result<String, String> {
+    require_network_root(settings)
+}
+pub fn snap_pub(settings: &AppSettings) -> AppSnapshotSubset {
+    snap(settings)
 }
 
 pub fn is_network_entry_id(id: &str) -> bool {
@@ -426,6 +465,8 @@ fn walk_discover(
                     update_status: "current".into(),
                     summary,
                     license: String::new(),
+                    intended_level: String::new(),
+                    security_level: String::new(),
                 });
                 continue; // don't descend into skill package
             }
@@ -454,6 +495,8 @@ fn walk_discover(
                     update_status: "current".into(),
                     summary: String::new(),
                     license: String::new(),
+                    intended_level: String::new(),
+                    security_level: String::new(),
                 });
             }
         }
@@ -473,14 +516,28 @@ fn path_rel_to_network(
     Ok(joined.to_string_lossy().replace('\\', "/"))
 }
 
-/// Rebuild index entries for one source; preserve updateStatus if same remote_id existed.
+/// Rebuild index entries for one source; preserve intendedLevel / security when same id.
 fn merge_source_entries(
     index: &mut NetworkIndex,
     source_id: &str,
     new_entries: Vec<NetworkEntry>,
 ) {
+    let prev: HashMap<String, NetworkEntry> = index
+        .entries
+        .iter()
+        .filter(|e| e.source_id == source_id)
+        .map(|e| (e.id.clone(), e.clone()))
+        .collect();
     index.entries.retain(|e| e.source_id != source_id);
-    index.entries.extend(new_entries);
+    for mut e in new_entries {
+        if let Some(old) = prev.get(&e.id) {
+            if !old.intended_level.is_empty() {
+                e.intended_level = old.intended_level.clone();
+            }
+            e.security_level = old.security_level.clone();
+        }
+        index.entries.push(e);
+    }
 }
 
 pub fn ensure_default_network_library(settings: &mut AppSettings) -> Result<AppSnapshotSubset, String> {
@@ -596,6 +653,10 @@ pub fn fetch_network_source(
         conflicts: None,
         promoted: None,
         update_available: None,
+        security: None,
+        reapply_hints: None,
+        blocked: None,
+        search_items: None,
     })
 }
 
@@ -641,6 +702,7 @@ pub fn check_network_updates(settings: &AppSettings) -> Result<NetworkOpResult, 
         }
     }
     save_network_index(&net_root, &index)?;
+    let reapply_hints = collect_reapply_hints(settings, &index);
     Ok(NetworkOpResult {
         ok: true,
         message: if available == 0 {
@@ -652,7 +714,60 @@ pub fn check_network_updates(settings: &AppSettings) -> Result<NetworkOpResult, 
         conflicts: None,
         promoted: None,
         update_available: Some(available),
+        security: None,
+        reapply_hints: if reapply_hints.is_empty() {
+            None
+        } else {
+            Some(reapply_hints)
+        },
+        blocked: None,
+        search_items: None,
     })
+}
+
+fn collect_reapply_hints(settings: &AppSettings, index: &NetworkIndex) -> Vec<ReapplyHintDto> {
+    let lib = settings.skills_library_root.trim();
+    if !settings.library_root_configured || lib.is_empty() {
+        return vec![];
+    }
+    let load = load_catalog(lib);
+    if !load.healthy {
+        return vec![];
+    }
+    let mut out = Vec::new();
+    for entry in &load.catalog.entries {
+        let Some(prov) = get_provenance(entry) else {
+            continue;
+        };
+        let Some(net) = index.entries.iter().find(|e| {
+            (!prov.network_entry_id.is_empty() && e.id == prov.network_entry_id)
+                || (e.source_id == prov.source_id
+                    && e.name.eq_ignore_ascii_case(&prov.skill_name))
+        }) else {
+            continue;
+        };
+        if net.update_status != "updateAvailable" {
+            continue;
+        }
+        let has_custom = load_customization(lib, &entry.id)
+            .map(|c| !c.unified_diff.trim().is_empty())
+            .unwrap_or(false);
+        if !has_custom {
+            continue;
+        }
+        out.push(ReapplyHintDto {
+            entry_id: entry.id.clone(),
+            skill_name: prov.skill_name.clone(),
+            source_url: prov.source_url.clone(),
+            network_entry_id: net.id.clone(),
+            has_customization: true,
+            message: format!(
+                "「{}」上游有更新且本地有定制 diff，可选择重放定制 / 覆盖 / 跳过",
+                entry.id
+            ),
+        });
+    }
+    out
 }
 
 pub fn apply_network_cache_update(
@@ -684,13 +799,25 @@ pub fn apply_network_cache_update(
             conflicts: None,
             promoted: None,
             update_available: Some(0),
+            security: None,
+            reapply_hints: None,
+            blocked: None,
+            search_items: None,
         });
     }
     let mut updated = 0u32;
+    let mut bak_notes = Vec::new();
     for sid in targets {
         let Some(src) = index.sources.iter().find(|s| s.id == sid).cloned() else {
             continue;
         };
+        match backup_cache_dir_before_update(&net_root, &sid) {
+            Ok(Some(rel)) => bak_notes.push(rel),
+            Ok(None) => {}
+            Err(e) => {
+                return Err(format!("源 {sid} 更新中止：{e}"));
+            }
+        }
         let dest = resolve_network_safe_path(&net_root, &src.cache_rel)?;
         let fingerprint = shallow_clone_or_update(&src.url, &dest)?;
         if let Some(s) = index.sources.iter_mut().find(|s| s.id == sid) {
@@ -708,14 +835,50 @@ pub fn apply_network_cache_update(
         updated += 1;
     }
     save_network_index(&net_root, &index)?;
+    let bak_msg = if bak_notes.is_empty() {
+        String::new()
+    } else {
+        format!("；已备份 {} 个旧缓存", bak_notes.len())
+    };
     Ok(NetworkOpResult {
         ok: true,
-        message: format!("已更新 {updated} 个源的网络缓存（未改永久库）"),
+        message: format!("已更新 {updated} 个源的网络缓存（未改永久库）{bak_msg}"),
         snapshot: snap(settings),
         conflicts: None,
         promoted: None,
         update_available: Some(0),
+        security: None,
+        reapply_hints: None,
+        blocked: None,
+        search_items: None,
     })
+}
+
+/// Rename existing cache dir to `cache/{id}.bak-{ts}` before overwrite (P2).
+pub fn backup_cache_dir_before_update(
+    network_root: &str,
+    source_id: &str,
+) -> Result<Option<String>, String> {
+    let cache_rel = format!("{NETWORK_CACHE_DIR}/{source_id}");
+    let dest = resolve_network_safe_path(network_root, &cache_rel)?;
+    if !dest.exists() {
+        return Ok(None);
+    }
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let bak_rel = format!("{NETWORK_CACHE_DIR}/{source_id}.bak-{ts}");
+    let bak = resolve_network_safe_path(network_root, &bak_rel)?;
+    if bak.exists() {
+        if bak.is_dir() {
+            fs::remove_dir_all(&bak).map_err(|e| format!("清理旧 bak: {e}"))?;
+        } else {
+            fs::remove_file(&bak).map_err(|e| format!("清理旧 bak: {e}"))?;
+        }
+    }
+    fs::rename(&dest, &bak).map_err(|e| format!("备份网络缓存失败（{source_id}）: {e}"))?;
+    Ok(Some(bak_rel))
 }
 
 fn copy_tree(src: &Path, dst: &Path) -> Result<(), String> {
@@ -744,10 +907,43 @@ fn copy_tree(src: &Path, dst: &Path) -> Result<(), String> {
     Ok(())
 }
 
+fn make_provenance(net_entry: &NetworkEntry) -> NetworkProvenance {
+    NetworkProvenance {
+        source_url: net_entry.source_url.clone(),
+        source_id: net_entry.source_id.clone(),
+        remote_ref: net_entry.fingerprint.clone(),
+        baseline_content_hash: net_entry.content_hash.clone(),
+        skill_name: net_entry.name.clone(),
+        promoted_at: chrono_like_now(),
+        network_entry_id: net_entry.id.clone(),
+    }
+}
+
+fn finalize_promoted_entry(
+    lib: &str,
+    mut entry: CatalogEntry,
+    net_entry: &NetworkEntry,
+    src_cmp: &Path,
+) -> Result<(), String> {
+    let prov = make_provenance(net_entry);
+    set_provenance(&mut entry, &prov);
+    let level = net_entry.intended_level.trim();
+    if level == "L0" || level == "L1" || level == "L2" {
+        let mut tags = get_entry_tags(&entry);
+        tags.level = Some(level.to_string());
+        set_entry_tags(&mut entry, tags);
+    }
+    upsert_entry(lib, entry.clone())?;
+    let text = fs::read_to_string(src_cmp).unwrap_or_default();
+    seed_baseline_on_promote(lib, &entry.id, &text, &net_entry.content_hash)?;
+    Ok(())
+}
+
 pub fn promote_network_to_library(
     settings: &AppSettings,
     entry_ids: &[String],
     resolutions: &[ConflictResolution],
+    force_security_override: bool,
 ) -> Result<NetworkOpResult, String> {
     let net_root = require_network_root(settings)?;
     let lib = settings.skills_library_root.trim();
@@ -755,11 +951,58 @@ pub fn promote_network_to_library(
         return Err("请先配置永久库".into());
     }
     ensure_library_layout(lib)?;
-    let index = load_network_index(&net_root)?;
+    let mut index = load_network_index(&net_root)?;
     let res_map: HashMap<String, String> = resolutions
         .iter()
         .map(|r| (r.key.clone(), r.choice.to_lowercase()))
         .collect();
+
+    let mut worst_security: Option<SecurityReport> = None;
+    for raw_id in entry_ids {
+        let id = raw_id.trim();
+        if !is_network_entry_id(id) {
+            continue;
+        }
+        let Some(net_entry) = index.entries.iter().find(|e| e.id == id) else {
+            continue;
+        };
+        let Ok(src_abs) = resolve_network_safe_path(&net_root, &net_entry.cached_rel_path) else {
+            continue;
+        };
+        let report = evaluate_path(&net_root, &src_abs);
+        if let Some(e) = index.entries.iter_mut().find(|e| e.id == id) {
+            e.security_level = report.level.clone();
+        }
+        let take = match (&worst_security, report.level.as_str()) {
+            (None, _) => true,
+            (Some(w), "block") if w.level != "block" => true,
+            (Some(w), "warn") if w.level == "pass" => true,
+            _ => false,
+        };
+        if take {
+            worst_security = Some(report);
+        }
+    }
+    let _ = save_network_index(&net_root, &index);
+    if let Some(ref sec) = worst_security {
+        if sec.level == "block" && !force_security_override {
+            return Ok(NetworkOpResult {
+                ok: false,
+                message: format!(
+                    "安全评测为 block，已阻止转入本地（{} 条发现）。确认风险后可强制转入。",
+                    sec.findings.len()
+                ),
+                snapshot: snap(settings),
+                conflicts: None,
+                promoted: Some(0),
+                update_available: None,
+                security: Some(sec.clone()),
+                reapply_hints: None,
+                blocked: Some(true),
+                search_items: None,
+            });
+        }
+    }
 
     let mut promoted = 0u32;
     let mut conflicts = Vec::new();
@@ -858,7 +1101,7 @@ pub fn promote_network_to_library(
                 let new_dest =
                     resolve_library_safe_path(lib, &new_rel).map_err(|e| e.to_string())?;
                 copy_tree(&src_abs, &new_dest)?;
-                upsert_entry(
+                finalize_promoted_entry(
                     lib,
                     CatalogEntry {
                         id: new_id,
@@ -877,6 +1120,8 @@ pub fn promote_network_to_library(
                         }],
                         extra: Default::default(),
                     },
+                    &net_entry,
+                    &src_cmp,
                 )?;
                 promoted += 1;
                 continue;
@@ -910,7 +1155,7 @@ pub fn promote_network_to_library(
                     tool: "network".into(),
                     scope: "network".into(),
                 });
-                upsert_entry(lib, updated)?;
+                finalize_promoted_entry(lib, updated, &net_entry, &src_cmp)?;
                 promoted += 1;
                 continue;
             }
@@ -926,7 +1171,7 @@ pub fn promote_network_to_library(
             }
         }
         copy_tree(&src_abs, &dest_abs)?;
-        upsert_entry(
+        finalize_promoted_entry(
             lib,
             CatalogEntry {
                 id: promote_id,
@@ -945,6 +1190,8 @@ pub fn promote_network_to_library(
                 }],
                 extra: Default::default(),
             },
+            &net_entry,
+            &src_cmp,
         )?;
         promoted += 1;
     }
@@ -969,6 +1216,10 @@ pub fn promote_network_to_library(
         },
         promoted: Some(promoted),
         update_available: None,
+        security: worst_security,
+        reapply_hints: None,
+        blocked: None,
+        search_items: None,
     })
 }
 
@@ -979,6 +1230,7 @@ pub fn network_list_items(settings: &AppSettings) -> Vec<LibraryListItemDto> {
     let Ok(index) = load_network_index(&root) else {
         return vec![];
     };
+    let heat = load_heat_cache(&root);
     index
         .entries
         .iter()
@@ -989,13 +1241,26 @@ pub fn network_list_items(settings: &AppSettings) -> Vec<LibraryListItemDto> {
                 "error" => " · 检查失败",
                 _ => "",
             };
+            let heat_label = heat_for_source_id(&e.source_id, Some(&heat));
+            let level = e.intended_level.trim();
+            let sec = e.security_level.trim();
             let subtitle = format!(
-                "{}{}{}",
+                "{}{}{}{}{}",
                 e.source_url,
                 if e.summary.is_empty() {
                     String::new()
                 } else {
                     format!(" · {}", e.summary)
+                },
+                if level.is_empty() {
+                    String::new()
+                } else {
+                    format!(" · {level}")
+                },
+                if sec.is_empty() {
+                    String::new()
+                } else {
+                    format!(" · 安全:{sec}")
                 },
                 badge
             );
@@ -1009,14 +1274,288 @@ pub fn network_list_items(settings: &AppSettings) -> Vec<LibraryListItemDto> {
                 is_in_container_list: false,
                 is_in_active_use: false,
                 search_text: Some(format!(
-                    "{} {} {} {}",
-                    e.id, e.name, e.source_url, e.summary
+                    "{} {} {} {} {} {}",
+                    e.id, e.name, e.source_url, e.summary, e.source_id, heat_label
                 )),
-                level_key: None,
+                level_key: if level.is_empty() {
+                    None
+                } else {
+                    Some(level.to_string())
+                },
                 scope_key: None,
+                source_id: Some(e.source_id.clone()),
+                source_url: Some(e.source_url.clone()),
+                heat_label: Some(heat_label),
+                intended_level: if level.is_empty() {
+                    None
+                } else {
+                    Some(level.to_string())
+                },
+                security_level: if sec.is_empty() {
+                    None
+                } else {
+                    Some(sec.to_string())
+                },
+                update_available: Some(e.update_status == "updateAvailable"),
             }
         })
         .collect()
+}
+
+pub fn network_nav_for_snapshot(
+    settings: &AppSettings,
+) -> (Vec<NetworkNavNodeDto>, Vec<NetworkNavNodeDto>) {
+    let mut counts: HashMap<String, u32> = HashMap::new();
+    let heat = effective_network_root(settings).map(|r| load_heat_cache(&r));
+    if let Some(root) = effective_network_root(settings) {
+        if let Ok(index) = load_network_index(&root) {
+            for e in &index.entries {
+                *counts.entry(e.source_id.clone()).or_default() += 1;
+            }
+        }
+    }
+    build_network_nav(settings, &counts, heat.as_ref())
+}
+
+pub fn set_network_pin(
+    settings: &mut AppSettings,
+    section: &str,
+    id: &str,
+    pinned: bool,
+) -> Result<AppSnapshotSubset, String> {
+    let id = id.trim();
+    if id.is_empty() {
+        return Err("空 id".into());
+    }
+    let list = if section.eq_ignore_ascii_case("official") {
+        &mut settings.network_official_pinned_ids
+    } else if section.eq_ignore_ascii_case("popular") {
+        &mut settings.network_popular_pinned_ids
+    } else {
+        return Err("section 须为 official 或 popular".into());
+    };
+    list.retain(|x| !x.eq_ignore_ascii_case(id));
+    if pinned {
+        list.push(id.to_string());
+    }
+    crate::settings::save_settings(settings)?;
+    Ok(snap(settings))
+}
+
+pub fn set_network_agent_repo_override(
+    settings: &mut AppSettings,
+    agent_key: &str,
+    url: &str,
+) -> Result<AppSnapshotSubset, String> {
+    let key = agent_key.trim();
+    if key.is_empty() {
+        return Err("空 agentKey".into());
+    }
+    let url = url.trim();
+    if url.is_empty() {
+        settings.network_agent_repo_overrides.remove(key);
+    } else {
+        settings
+            .network_agent_repo_overrides
+            .insert(key.to_string(), url.to_string());
+    }
+    crate::settings::save_settings(settings)?;
+    Ok(snap(settings))
+}
+
+pub fn set_network_intended_level(
+    settings: &AppSettings,
+    entry_ids: &[String],
+    level: &str,
+) -> Result<NetworkOpResult, String> {
+    let level = level.trim();
+    if !(level.is_empty() || level == "L0" || level == "L1" || level == "L2") {
+        return Err("level 须为 L0/L1/L2 或空".into());
+    }
+    let net_root = require_network_root(settings)?;
+    let mut index = load_network_index(&net_root)?;
+    let mut n = 0u32;
+    for raw in entry_ids {
+        let id = raw.trim();
+        if let Some(e) = index.entries.iter_mut().find(|e| e.id == id) {
+            e.intended_level = level.to_string();
+            n += 1;
+        }
+    }
+    save_network_index(&net_root, &index)?;
+    Ok(NetworkOpResult {
+        ok: true,
+        message: format!("已写入意向层级 {n} 项"),
+        snapshot: snap(settings),
+        conflicts: None,
+        promoted: None,
+        update_available: None,
+        security: None,
+        reapply_hints: None,
+        blocked: None,
+        search_items: None,
+    })
+}
+
+pub fn evaluate_network_security(
+    settings: &AppSettings,
+    entry_ids: &[String],
+) -> Result<NetworkOpResult, String> {
+    let net_root = require_network_root(settings)?;
+    let mut index = load_network_index(&net_root)?;
+    let mut worst: Option<SecurityReport> = None;
+    for raw in entry_ids {
+        let id = raw.trim();
+        let Some(e) = index.entries.iter().find(|e| e.id == id).cloned() else {
+            continue;
+        };
+        let Ok(src) = resolve_network_safe_path(&net_root, &e.cached_rel_path) else {
+            continue;
+        };
+        let report = evaluate_path(&net_root, &src);
+        if let Some(ent) = index.entries.iter_mut().find(|x| x.id == id) {
+            ent.security_level = report.level.clone();
+        }
+        let take = match (&worst, report.level.as_str()) {
+            (None, _) => true,
+            (Some(w), "block") if w.level != "block" => true,
+            (Some(w), "warn") if w.level == "pass" => true,
+            _ => false,
+        };
+        if take {
+            worst = Some(report);
+        }
+    }
+    save_network_index(&net_root, &index)?;
+    Ok(NetworkOpResult {
+        ok: true,
+        message: worst
+            .as_ref()
+            .map(|r| format!("安全评测：{}", r.level))
+            .unwrap_or_else(|| "无可评测条目".into()),
+        snapshot: snap(settings),
+        conflicts: None,
+        promoted: None,
+        update_available: None,
+        security: worst,
+        reapply_hints: None,
+        blocked: None,
+        search_items: None,
+    })
+}
+
+pub fn fetch_network_nav_source(
+    settings: &AppSettings,
+    kind: &str,
+    id: &str,
+) -> Result<NetworkOpResult, String> {
+    let id = id.trim();
+    if kind.eq_ignore_ascii_case("popular") {
+        let p = POPULAR_SOURCES
+            .iter()
+            .find(|p| p.id.eq_ignore_ascii_case(id))
+            .ok_or_else(|| format!("未知热门源：{id}"))?;
+        return fetch_network_source(settings, p.url, Some(p.label));
+    }
+    if kind.eq_ignore_ascii_case("official") {
+        let (url, baseline) = resolve_agent_repo(settings, id);
+        if let Some(b) = baseline {
+            return fetch_network_source(settings, &b, None);
+        }
+        if url.trim().is_empty() {
+            return Err("该官方工作区无默认仓；请先设置仓库 URL 或改用粘贴 Git URL".into());
+        }
+        return fetch_network_source(settings, &url, None);
+    }
+    Err("kind 须为 official 或 popular".into())
+}
+
+pub fn reapply_network_customization(
+    settings: &AppSettings,
+    entry_id: &str,
+    network_entry_id: &str,
+    mode: &str,
+) -> Result<NetworkOpResult, String> {
+    let mode = mode.trim().to_lowercase();
+    if mode == "skip" {
+        return Ok(NetworkOpResult {
+            ok: true,
+            message: "已跳过定制重放".into(),
+            snapshot: snap(settings),
+            conflicts: None,
+            promoted: None,
+            update_available: None,
+            security: None,
+            reapply_hints: None,
+            blocked: None,
+            search_items: None,
+        });
+    }
+    let lib = settings.skills_library_root.trim();
+    if !settings.library_root_configured || lib.is_empty() {
+        return Err("请先配置永久库".into());
+    }
+    let net_root = require_network_root(settings)?;
+    let index = load_network_index(&net_root)?;
+    let net = index
+        .entries
+        .iter()
+        .find(|e| e.id == network_entry_id)
+        .ok_or_else(|| format!("网络条目不存在：{network_entry_id}"))?
+        .clone();
+    let load = load_catalog(lib);
+    let entry = load
+        .catalog
+        .entries
+        .iter()
+        .find(|e| e.id == entry_id)
+        .cloned()
+        .ok_or_else(|| format!("永久库条目不存在：{entry_id}"))?;
+    let src_abs = resolve_network_safe_path(&net_root, &net.cached_rel_path)?;
+    let cmp = resolve_comparable_content_path(&src_abs.to_string_lossy(), &net.kind);
+    let upstream = fs::read_to_string(&cmp).unwrap_or_default();
+    let upstream_hash = if net.content_hash.is_empty() {
+        crate::hash::hash_path_auto(&cmp)
+            .map(|(h, _)| h)
+            .unwrap_or_default()
+    } else {
+        net.content_hash.clone()
+    };
+    if mode == "overwrite" {
+        write_merged_to_library_entry(lib, &entry, &upstream)?;
+        update_entry_provenance_hash(lib, entry_id, &upstream_hash, &net.fingerprint)?;
+        return Ok(NetworkOpResult {
+            ok: true,
+            message: format!("已用上游覆盖永久库：{entry_id}"),
+            snapshot: snap(settings),
+            conflicts: None,
+            promoted: None,
+            update_available: None,
+            security: None,
+            reapply_hints: None,
+            blocked: None,
+            search_items: None,
+        });
+    }
+    if mode == "reapply" {
+        let (merged, _applied) =
+            reapply_customization_on_text(lib, entry_id, &upstream, &upstream_hash)?;
+        write_merged_to_library_entry(lib, &entry, &merged)?;
+        update_entry_provenance_hash(lib, entry_id, &upstream_hash, &net.fingerprint)?;
+        return Ok(NetworkOpResult {
+            ok: true,
+            message: format!("已重放定制到永久库：{entry_id}"),
+            snapshot: snap(settings),
+            conflicts: None,
+            promoted: None,
+            update_available: None,
+            security: None,
+            reapply_hints: None,
+            blocked: None,
+            search_items: None,
+        });
+    }
+    Err("mode 须为 reapply / overwrite / skip".into())
 }
 
 fn kind_allowed(settings: &AppSettings, kind: &str) -> bool {
@@ -1118,6 +1657,7 @@ mod tests {
             update_status: "current".into(),
             summary: "Hello".into(),
             license: String::new(),
+            ..Default::default()
         });
         save_network_index(&net, &index).unwrap();
 
@@ -1132,6 +1672,7 @@ mod tests {
             &settings,
             &[format!("{NETWORK_ID_PREFIX}demo:my-skill")],
             &[],
+            false,
         )
         .unwrap();
         assert!(res.ok, "{}", res.message);
@@ -1221,6 +1762,7 @@ mod tests {
             update_status: "current".into(),
             summary: String::new(),
             license: String::new(),
+            ..Default::default()
         });
         save_network_index(&net, &index).unwrap();
 
@@ -1233,7 +1775,7 @@ mod tests {
         };
 
         // 步骤 6：同名不同哈希 → 冲突，文案含网络库
-        let res = promote_network_to_library(&settings, &[net_id.clone()], &[]).unwrap();
+        let res = promote_network_to_library(&settings, &[net_id.clone()], &[], false).unwrap();
         assert!(!res.ok);
         let conflicts = res.conflicts.expect("conflicts");
         assert!(!conflicts.is_empty());
@@ -1251,6 +1793,7 @@ mod tests {
                 key: conflicts[0].key.clone(),
                 choice: "overwrite".into(),
             }],
+            false,
         )
         .unwrap();
         assert!(res2.ok, "{}", res2.message);

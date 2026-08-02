@@ -304,11 +304,105 @@ function createFixtureSnapshot(): AppSnapshot {
         children: [],
       },
     ],
-    networkLibraryItems: [],
-    networkLibrarySummary: '0',
+    networkLibraryItems: [
+      {
+        entryId: 'net:demo:sample-skill',
+        displayName: 'sample-skill',
+        groupName: '网络库',
+        kindLabel: 'Skill',
+        subtitle: 'https://github.com/anthropics/skills · 演示',
+        isInContainerList: false,
+        sourceId: 'anthropics-skills',
+        sourceUrl: 'https://github.com/anthropics/skills',
+        heatLabel: '★26.4k · 官方',
+        intendedLevel: 'L1',
+        securityLevel: 'pass',
+        updateAvailable: false,
+        searchText: 'sample-skill anthropics',
+      },
+    ],
+    networkLibrarySummary: '1',
     networkLibraryHeader: '网络库（开源橱窗）',
     isNetworkLibraryConfigured: true,
     networkLibraryRootDisplay: 'C:\\Users\\Demo\\CCM-NetworkLibrary',
+    networkOfficialNav: [
+      {
+        id: 'claude_code',
+        kind: 'official',
+        displayName: 'Claude Code',
+        pinned: true,
+        primaryRepoUrl: 'https://github.com/anthropics/skills',
+        baselineId: 'anthropics-skills',
+        heatLabel: '★官方样例',
+        hasDefaultRepo: true,
+        cachedCount: 1,
+      },
+      {
+        id: 'cursor',
+        kind: 'official',
+        displayName: 'Cursor',
+        pinned: true,
+        primaryRepoUrl: '',
+        heatLabel: '无默认官方仓',
+        hasDefaultRepo: false,
+        cachedCount: 0,
+      },
+      {
+        id: 'codex',
+        kind: 'official',
+        displayName: 'Codex',
+        pinned: false,
+        primaryRepoUrl: '',
+        heatLabel: '无默认官方仓',
+        hasDefaultRepo: false,
+        cachedCount: 0,
+      },
+      {
+        id: 'gemini_cli',
+        kind: 'official',
+        displayName: 'Gemini CLI',
+        pinned: false,
+        primaryRepoUrl: '',
+        heatLabel: '无默认官方仓',
+        hasDefaultRepo: false,
+        cachedCount: 0,
+      },
+    ],
+    networkPopularNav: [
+      {
+        id: 'anthropics-skills',
+        kind: 'popular',
+        displayName: 'anthropics/skills',
+        pinned: true,
+        primaryRepoUrl: 'https://github.com/anthropics/skills',
+        baselineId: 'anthropics-skills',
+        heatLabel: '★官方',
+        hasDefaultRepo: true,
+        cachedCount: 1,
+      },
+      {
+        id: 'obra-superpowers',
+        kind: 'popular',
+        displayName: 'obra/superpowers',
+        pinned: false,
+        primaryRepoUrl: 'https://github.com/obra/superpowers',
+        heatLabel: '★264k · 框架',
+        hasDefaultRepo: true,
+        cachedCount: 0,
+      },
+      {
+        id: 'mattpocock-skills',
+        kind: 'popular',
+        displayName: 'mattpocock/skills',
+        pinned: false,
+        primaryRepoUrl: 'https://github.com/mattpocock/skills',
+        heatLabel: '★197k',
+        hasDefaultRepo: true,
+        cachedCount: 0,
+      },
+    ],
+    networkUpdateCheckIntervalMinutes: 0,
+    skillsShConfigured: false,
     inContainerSummary: '容器中 2 项',
     inLibrarySummary: '曾用于本容器 1 项',
     inLibraryOwnSummary: '曾用于本容器 1',
@@ -468,6 +562,10 @@ function applyUiMutation(snap: AppSnapshot, method: IpcMethod, args: Record<stri
       break
     }
     case 'openPath': {
+      const p = typeof args.path === 'string' ? args.path.trim() : ''
+      if (/^https?:\/\//i.test(p)) {
+        window.open(p, '_blank', 'noopener,noreferrer')
+      }
       break
     }
     case 'setSelection': {
@@ -933,6 +1031,85 @@ export function installCcmMock(): void {
       }
 
       if (method === 'applySuggestedPurposes') {
+        return { ok: true, message: PREVIEW_MSG, snapshot: snap }
+      }
+
+      if (method === 'setNetworkPin') {
+        const section = String(args.section ?? '')
+        const id = String(args.id ?? '')
+        const pinned = Boolean(args.pinned)
+        const patch = (list: typeof snap.networkOfficialNav) =>
+          (list ?? []).map((n) => (n.id === id ? { ...n, pinned } : n))
+        if (section === 'official') {
+          snap = { ...snap, networkOfficialNav: patch(snap.networkOfficialNav) }
+        } else if (section === 'popular') {
+          snap = { ...snap, networkPopularNav: patch(snap.networkPopularNav) }
+        }
+        return { ok: true, message: PREVIEW_MSG, snapshot: snap }
+      }
+
+      if (
+        method === 'fetchNetworkSource' ||
+        method === 'fetchNetworkNavSource' ||
+        method === 'checkNetworkUpdates' ||
+        method === 'applyNetworkCacheUpdate' ||
+        method === 'promoteNetworkToLibrary' ||
+        method === 'setNetworkIntendedLevel' ||
+        method === 'evaluateNetworkSecurity' ||
+        method === 'refreshNetworkHeat' ||
+        method === 'cleanupNetworkCache' ||
+        method === 'reapplyNetworkCustomization' ||
+        method === 'ensureDefaultNetworkLibrary' ||
+        method === 'chooseNetworkLibraryRoot'
+      ) {
+        return {
+          ok: true,
+          message: PREVIEW_MSG,
+          snapshot: snap,
+          data: { updateAvailable: 0, promoted: 0, searchItems: [] } as T,
+        }
+      }
+
+      if (method === 'searchSkillsSh') {
+        return {
+          ok: false,
+          message: '需自行申请 skills.sh API Key；当前使用固化热门清单',
+          snapshot: snap,
+        }
+      }
+
+      if (method === 'previewLibraryDrift') {
+        return {
+          ok: true,
+          message: PREVIEW_MSG,
+          data: { ok: true, message: '预览：无漂移', items: [] } as T,
+          snapshot: snap,
+        }
+      }
+      if (method === 'listDeployRecipes') {
+        return { ok: true, data: { recipes: [] } as T, snapshot: snap }
+      }
+      if (
+        method === 'saveDeployRecipe' ||
+        method === 'deleteDeployRecipe' ||
+        method === 'applyDeployRecipe'
+      ) {
+        return { ok: true, message: PREVIEW_MSG, data: { recipes: [] } as T, snapshot: snap }
+      }
+
+      if (method === 'updateAppSettings') {
+        if (typeof args.networkUpdateCheckIntervalMinutes === 'number') {
+          snap = {
+            ...snap,
+            networkUpdateCheckIntervalMinutes: args.networkUpdateCheckIntervalMinutes,
+          }
+        }
+        if (typeof args.skillsShApiToken === 'string') {
+          snap = {
+            ...snap,
+            skillsShConfigured: Boolean(args.skillsShApiToken.trim()),
+          }
+        }
         return { ok: true, message: PREVIEW_MSG, snapshot: snap }
       }
 

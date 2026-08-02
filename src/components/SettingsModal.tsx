@@ -57,6 +57,8 @@ export type SettingsModalProps = {
     projectScanRoots: string[]
     projectScanMaxDepth: number
     autoScanProjectsOnStartup: boolean
+    networkUpdateCheckIntervalMinutes: number
+    skillsShApiToken: string
   }) => Promise<boolean>
   onResetCatalog: () => Promise<boolean>
   onListCatalogBackups: () => Promise<CatalogBackupInfo[]>
@@ -70,6 +72,20 @@ export type SettingsModalProps = {
     displayName?: string
     containerRoot?: string
   }) => Promise<boolean>
+  /** Plan/05：漂移报告 / 部署配方 */
+  onPreviewDrift?: () => Promise<{
+    message: string
+    items: Array<{ entryId: string; workspaceId: string; reason: string }>
+  } | null>
+  onListRecipes?: () => Promise<Array<{ id: string; name: string; entryIds: string[]; workspaceId: string }>>
+  onSaveRecipe?: (recipe: {
+    id: string
+    name: string
+    entryIds: string[]
+    workspaceId: string
+  }) => Promise<boolean>
+  onApplyRecipe?: (id: string) => Promise<boolean>
+  onDeleteRecipe?: (id: string) => Promise<boolean>
 }
 
 export function SettingsModal({
@@ -86,6 +102,11 @@ export function SettingsModal({
   onRestoreCatalogBackup,
   onSetWorkspaceVisibility,
   onSetDefaultWorkspace,
+  onPreviewDrift,
+  onListRecipes,
+  onSaveRecipe,
+  onApplyRecipe,
+  onDeleteRecipe,
   onUpdateWorkspaceConfig,
 }: SettingsModalProps) {
   const defaults = useMemo(
@@ -101,7 +122,24 @@ export function SettingsModal({
   const [customRoots, setCustomRoots] = useState<string[]>([])
   const [scanDepth, setScanDepth] = useState(snap.projectScanMaxDepth ?? 5)
   const [autoScan, setAutoScan] = useState(Boolean(snap.autoScanProjectsOnStartup))
+  const [netCheckMins, setNetCheckMins] = useState(snap.networkUpdateCheckIntervalMinutes ?? 0)
+  const [skillsToken, setSkillsToken] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [driftMsg, setDriftMsg] = useState<string | null>(null)
+  const [driftItems, setDriftItems] = useState<
+    Array<{ entryId: string; workspaceId: string; reason: string }>
+  >([])
+  const [recipes, setRecipes] = useState<
+    Array<{ id: string; name: string; entryIds: string[]; workspaceId: string }>
+  >([])
+  const [recipeName, setRecipeName] = useState('')
+  const [showFirstTip, setShowFirstTip] = useState(() => {
+    try {
+      return localStorage.getItem('ccm.firstTip') !== '0'
+    } catch {
+      return true
+    }
+  })
   const [catalogBackups, setCatalogBackups] = useState<CatalogBackupInfo[]>([])
   const [selectedBackupId, setSelectedBackupId] = useState<string | null>(null)
   const [backupsLoading, setBackupsLoading] = useState(false)
@@ -122,6 +160,8 @@ export function SettingsModal({
     setBackupRoot(snap.disabledStorageDisplay || '')
     setScanDepth(snap.projectScanMaxDepth ?? 5)
     setAutoScan(Boolean(snap.autoScanProjectsOnStartup))
+    setNetCheckMins(snap.networkUpdateCheckIntervalMinutes ?? 0)
+    setSkillsToken('')
     const configured = (snap.projectScanRoots ?? []).map((p) => p.replace(/\//g, '\\'))
     if (configured.length === 0) {
       // 空配置 = 全部默认盘符已勾选、无自定义
@@ -149,6 +189,8 @@ export function SettingsModal({
     snap.projectScanMaxDepth,
     snap.autoScanProjectsOnStartup,
     snap.defaultProjectScanRoots,
+    snap.networkUpdateCheckIntervalMinutes,
+    snap.skillsShConfigured,
   ])
 
   useEffect(() => {
@@ -223,6 +265,8 @@ export function SettingsModal({
       projectScanRoots: roots,
       projectScanMaxDepth: depth,
       autoScanProjectsOnStartup: autoScan,
+      networkUpdateCheckIntervalMinutes: netCheckMins,
+      skillsShApiToken: skillsToken,
     })
     if (ok) onClose()
   }
@@ -282,15 +326,32 @@ export function SettingsModal({
               </li>
               <li>
                 <strong>全局工作区</strong>
-                ：Cursor / Claude / Codex 各绑独立容器根；下方可勾选显示、改路径与默认。
+                ：Cursor / Claude / Codex / Gemini / OpenCode 等常用工具各绑独立容器根；下方可勾选显示、改路径与默认。
               </li>
             </ol>
+            <label className="settings-check" style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={showFirstTip}
+                disabled={busy}
+                onChange={(e) => {
+                  const on = e.target.checked
+                  setShowFirstTip(on)
+                  try {
+                    localStorage.setItem('ccm.firstTip', on ? '1' : '0')
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+              />
+              <span>显示首次提示（帮助见 Docs/06 五分钟路径）</span>
+            </label>
           </section>
 
           <section className="settings-workspaces" aria-label="全局工作区">
             <h4 className="settings-section-title">全局工作区</h4>
             <p className="sub" style={{ marginTop: 0, marginBottom: 8 }}>
-              勾选「显示」后侧栏与列表出现对应容器分区；「默认」决定首次焦点；部署写入当前焦点工作区。
+              勾选「显示」后侧栏与列表出现对应容器分区；「默认」决定首次焦点；部署写入当前焦点工作区。内置探测含 Cursor / Claude / Codex / Gemini CLI / OpenCode / Windsurf / Continue。
             </p>
             <table className="settings-ws-table">
               <thead>
@@ -386,6 +447,121 @@ export function SettingsModal({
             </table>
           </section>
 
+          <section className="settings-drift" aria-label="漂移报告">
+            <h4 className="settings-section-title">漂移报告</h4>
+            <p className="sub" style={{ marginTop: 0, marginBottom: 8 }}>
+              对比可见工作区/当前项目容器副本与永久库哈希；列出「与库不一致」项（只读报告，不自动覆盖）。
+            </p>
+            <button
+              type="button"
+              disabled={busy || !onPreviewDrift}
+              onClick={() => {
+                void (async () => {
+                  const r = await onPreviewDrift?.()
+                  if (!r) {
+                    setDriftMsg('无法生成报告')
+                    setDriftItems([])
+                    return
+                  }
+                  setDriftMsg(r.message)
+                  setDriftItems(r.items)
+                })()
+              }}
+            >
+              生成漂移报告
+            </button>
+            {driftMsg ? <p className="sub">{driftMsg}</p> : null}
+            {driftItems.length > 0 ? (
+              <ul className="settings-drift-list">
+                {driftItems.map((it) => (
+                  <li key={`${it.entryId}:${it.workspaceId}`}>
+                    [{it.workspaceId}] {it.entryId} — {it.reason}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </section>
+
+          <section className="settings-recipes" aria-label="部署配方">
+            <h4 className="settings-section-title">部署配方</h4>
+            <p className="sub" style={{ marginTop: 0, marginBottom: 8 }}>
+              配方 = 永久库条目列表 + 目标焦点工作区；一次复制部署，不做 live sync。网络库条目不可入配方。
+            </p>
+            <div className="settings-row" style={{ marginBottom: 8 }}>
+              <input
+                type="text"
+                placeholder="配方名称"
+                value={recipeName}
+                disabled={busy}
+                onChange={(e) => setRecipeName(e.target.value)}
+              />
+              <button
+                type="button"
+                disabled={busy || !onSaveRecipe || !recipeName.trim() || !(snap.selectedEntryIds?.length)}
+                onClick={() => {
+                  void (async () => {
+                    const ok = await onSaveRecipe?.({
+                      id: '',
+                      name: recipeName.trim(),
+                      entryIds: [...(snap.selectedEntryIds ?? [])],
+                      workspaceId: snap.selectedGlobalTool || '',
+                    })
+                    if (ok) {
+                      setRecipeName('')
+                      const list = (await onListRecipes?.()) ?? []
+                      setRecipes(list)
+                    }
+                  })()
+                }}
+              >
+                用当前选中保存
+              </button>
+              <button
+                type="button"
+                disabled={busy || !onListRecipes}
+                onClick={() => {
+                  void (async () => setRecipes((await onListRecipes?.()) ?? []))()
+                }}
+              >
+                刷新列表
+              </button>
+            </div>
+            {recipes.length > 0 ? (
+              <ul className="settings-recipe-list">
+                {recipes.map((r) => (
+                  <li key={r.id}>
+                    <span>
+                      {r.name}（{r.entryIds.length} 项
+                      {r.workspaceId ? ` → ${r.workspaceId}` : ''}）
+                    </span>
+                    <button
+                      type="button"
+                      disabled={busy || !onApplyRecipe}
+                      onClick={() => void onApplyRecipe?.(r.id)}
+                    >
+                      一键部署
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy || !onDeleteRecipe}
+                      onClick={() => {
+                        void (async () => {
+                          if (await onDeleteRecipe?.(r.id)) {
+                            setRecipes((await onListRecipes?.()) ?? [])
+                          }
+                        })()
+                      }}
+                    >
+                      删除
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="sub">暂无配方；先在列表选中永久库条目再保存。</p>
+            )}
+          </section>
+
           <label className="settings-field">
             <span className="settings-label">永久库</span>
             <div className="settings-row">
@@ -438,6 +614,42 @@ export function SettingsModal({
             </div>
             <p className="settings-hint">
               与永久库隔离的只读缓存根；默认在用户目录下 CCM-NetworkLibrary。禁止与永久库同路径。
+            </p>
+          </label>
+
+          <label className="settings-field">
+            <span className="settings-label">网络更新检查间隔</span>
+            <select
+              value={netCheckMins}
+              disabled={busy}
+              onChange={(e) => setNetCheckMins(Number(e.target.value) || 0)}
+            >
+              <option value={0}>关闭（默认）</option>
+              <option value={60}>60 分钟</option>
+              <option value={360}>6 小时</option>
+              <option value={1440}>24 小时</option>
+            </select>
+            <p className="settings-hint">
+              仅在网络货架挂载时定时调用「检查更新」并标记 updateAvailable；不会自动覆盖缓存或写入永久库。
+            </p>
+          </label>
+
+          <label className="settings-field">
+            <span className="settings-label">skills.sh API Key（可选）</span>
+            <input
+              type="password"
+              autoComplete="off"
+              placeholder={
+                snap.skillsShConfigured
+                  ? '已配置（留空保存则清空）'
+                  : '空=禁用；需自行申请 Bearer'
+              }
+              value={skillsToken}
+              disabled={busy}
+              onChange={(e) => setSkillsToken(e.target.value)}
+            />
+            <p className="settings-hint">
+              无密钥时侧栏搜索会提示降级，继续使用固化「GitHub 热门」清单；不爬网页、不写进 git。
             </p>
           </label>
 

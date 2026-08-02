@@ -25,6 +25,19 @@ pub struct LibraryListItemDto {
     pub level_key: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scope_key: Option<String>,
+    /// Network quarantine row metadata (local library rows leave these unset).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub heat_label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub intended_level: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub security_level: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub update_available: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -97,6 +110,12 @@ pub struct AppSnapshotSubset {
     pub network_library_header: String,
     pub is_network_library_configured: bool,
     pub network_library_root_display: String,
+    pub network_official_nav: Vec<crate::network_catalog::NetworkNavNodeDto>,
+    pub network_popular_nav: Vec<crate::network_catalog::NetworkNavNodeDto>,
+    /// 0 = off; minutes between check-only updates.
+    pub network_update_check_interval_minutes: i32,
+    /// True when SkillsShApiToken is non-empty (token itself never exposed).
+    pub skills_sh_configured: bool,
     pub in_container_summary: String,
     pub in_library_summary: String,
     pub in_library_own_summary: String,
@@ -205,6 +224,12 @@ fn entry_to_list_item(
         )),
         level_key: tags.level.clone(),
         scope_key: Some(tags.scope),
+        source_id: None,
+        source_url: None,
+        heat_label: None,
+        intended_level: None,
+        security_level: None,
+        update_available: None,
     }
 }
 
@@ -702,6 +727,8 @@ pub fn build_snapshot_subset(
     let network_root_display = crate::network_library::effective_network_root(settings)
         .map(|p| to_display_path(&p))
         .unwrap_or_else(|| "（未配置）".into());
+    let (network_official_nav, network_popular_nav) =
+        crate::network_library::network_nav_for_snapshot(settings);
 
     let can_save_final = !network_selected
         && configured
@@ -810,6 +837,10 @@ pub fn build_snapshot_subset(
         network_library_header: "网络库（开源橱窗）".into(),
         is_network_library_configured: net_configured,
         network_library_root_display: network_root_display,
+        network_official_nav,
+        network_popular_nav,
+        network_update_check_interval_minutes: settings.network_update_check_interval_minutes,
+        skills_sh_configured: !settings.skills_sh_api_token.trim().is_empty(),
         selected_entry_ids: session_ids.clone(),
         selection_summary,
         detail_pane_mode: if !detail_markdown_file_path.is_empty() && detail_mode == "summary" {

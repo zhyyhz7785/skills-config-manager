@@ -9,6 +9,7 @@ import type {
   LibraryListItemDto,
   MoveIntoBackupPreviewDto,
   NavNodeDto,
+  NetworkNavNodeDto,
   PathConflictDto,
   SuggestedPurposeDto,
   WorkspaceContainerSectionDto,
@@ -26,6 +27,7 @@ import {
 } from './components/DetailMarkdownTabHost'
 import { SideBySideDiff } from './components/SideBySideDiff'
 import { SettingsModal } from './components/SettingsModal'
+import { NetworkNav, NetworkWorkbench, type NetworkNavSel } from './components/NetworkShelf'
 import { ThemeGalleryPanel } from './components/ThemeGalleryPanel'
 import { loadMdStyleState, saveMdStyleState, type MdStyleState } from './lib/mdStylePrefs'
 import { LayoutPriority, WorkbenchSplit } from './layout/WorkbenchSplit'
@@ -95,6 +97,13 @@ export default function App() {
   const [snap, setSnap] = useState<AppSnapshot | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [firstTip, setFirstTip] = useState(() => {
+    try {
+      return localStorage.getItem('ccm.firstTip') !== '0'
+    } catch {
+      return true
+    }
+  })
   const [busy, setBusy] = useState(false)
   const [projectDialog, setProjectDialog] = useState<'edit' | null>(null)
   const [tagDialog, setTagDialog] = useState(false)
@@ -132,6 +141,11 @@ export default function App() {
   })
   const [navVisible, setNavVisible] = useState(true)
   const [detailVisible, setDetailVisible] = useState(true)
+  /** 侧栏货架：本地=工作区/项目；网络=网络库操作与工作台 */
+  const [navShelf, setNavShelf] = useState<'local' | 'network'>('local')
+  const [networkNavSel, setNetworkNavSel] = useState<NetworkNavSel>(null)
+  const [networkOfficialGeneralOpen, setNetworkOfficialGeneralOpen] = useState(false)
+  const [networkPopularGeneralOpen, setNetworkPopularGeneralOpen] = useState(false)
   const [layoutRestoreKey, setLayoutRestoreKey] = useState('init')
   const layoutTimer = useRef<number | null>(null)
   /** 栏宽/可见性只从 settings 灌入一次，避免后续 snapshot 与 sash 拖拽互相覆盖 */
@@ -149,6 +163,32 @@ export default function App() {
   /** 详情 Markdown 排版/布局/细节（主题画廊） */
   const [mdStyle, setMdStyle] = useState<MdStyleState>(() => loadMdStyleState())
   const [themeGalleryOpen, setThemeGalleryOpen] = useState(false)
+
+  /** B3：网络货架挂载且间隔>0 时仅 checkNetworkUpdates（禁止自动 apply） */
+  useEffect(() => {
+    if (navShelf !== 'network') return
+    const mins = snap?.networkUpdateCheckIntervalMinutes ?? 0
+    if (!mins || mins <= 0) return
+    const ms = mins * 60 * 1000
+    const tick = () => {
+      void invoke<{ updateAvailable?: number }>('checkNetworkUpdates')
+        .then((res) => {
+          if (res.snapshot) setSnap(res.snapshot)
+          const n =
+            (res.data as { updateAvailable?: number } | undefined)?.updateAvailable ??
+            (res as { updateAvailable?: number }).updateAvailable
+          if (typeof n === 'number' && n > 0) {
+            setToast(`有 ${n} 个源可更新`)
+            window.setTimeout(() => setToast(null), 4000)
+          }
+        })
+        .catch(() => {
+          /* 定时检查失败静默 */
+        })
+    }
+    const id = window.setInterval(tick, ms)
+    return () => window.clearInterval(id)
+  }, [navShelf, snap?.networkUpdateCheckIntervalMinutes])
 
   const updateMdStyle = useCallback((next: MdStyleState) => {
     setMdStyle(next)
@@ -1119,11 +1159,11 @@ export default function App() {
     )
   }
 
-  const promoteSelectedFromNetwork = async () => {
+  const promoteSelectedFromNetwork = async (forceSecurityOverride = false) => {
     if (busy || !snap) return
     const ids = snap.selectedEntryIds.filter((id) => id.startsWith('net:'))
     if (ids.length === 0) {
-      setToast('请先在网络库分区选择条目')
+      setToast('请先在网络工作台选择条目')
       window.setTimeout(() => setToast(null), 3000)
       return
     }
@@ -1136,11 +1176,31 @@ export default function App() {
           message?: string
           conflicts?: PathConflictDto[]
           promoted?: number
-        }>('promoteNetworkToLibrary', { entryIds: ids, resolutions: [] }),
+          blocked?: boolean
+        }>('promoteNetworkToLibrary', {
+          entryIds: ids,
+          resolutions: [],
+          forceSecurityOverride,
+        }),
       )
       const data = res.data as
-        | { conflicts?: PathConflictDto[]; promoted?: number }
+        | { conflicts?: PathConflictDto[]; promoted?: number; blocked?: boolean }
         | undefined
+      if (data?.blocked && !forceSecurityOverride) {
+        const ok = window.confirm(
+          `${res.message || '安全评测为 block'}
+
+确认风险后强制转入本地？`,
+        )
+        if (ok) {
+          setBusy(false)
+          await promoteSelectedFromNetwork(true)
+          return
+        }
+        setToast(res.message || '已阻止转入')
+        window.setTimeout(() => setToast(null), 4000)
+        return
+      }
       const nextConflicts = data?.conflicts ?? []
       if (nextConflicts.length > 0) {
         setPendingPromoteIds(ids)
@@ -1150,7 +1210,7 @@ export default function App() {
         window.setTimeout(() => setToast(null), 4000)
         return
       }
-      setToast(res.message || `已存入永久库 ${data?.promoted ?? 0} 项`)
+      setToast(res.message || `已转入本地 ${data?.promoted ?? 0} 项`)
       window.setTimeout(() => setToast(null), 4000)
     } catch (e) {
       setToast(e instanceof Error ? e.message : String(e))
@@ -1196,14 +1256,76 @@ export default function App() {
     }
   }
 
+  const handleReapplyHints = async (
+    hints: Array<{
+      entryId?: string
+      networkEntryId?: string
+      message?: string
+      skillName?: string
+    }>,
+  ) => {
+    for (const h of hints) {
+      const entryId = String(h.entryId ?? '')
+      const networkEntryId = String(h.networkEntryId ?? '')
+      if (!entryId || !networkEntryId) continue
+      const choice = window.prompt(
+        `${h.message || h.skillName || entryId}\n\n输入：reapply（重放定制）/ overwrite（覆盖）/ skip（跳过）`,
+        'skip',
+      )
+      const mode = (choice || 'skip').trim().toLowerCase()
+      if (mode !== 'reapply' && mode !== 'overwrite' && mode !== 'skip') continue
+      try {
+        const res = apply(
+          await invoke('reapplyNetworkCustomization', {
+            entryId,
+            networkEntryId,
+            mode,
+          }),
+        )
+        setToast(res.message || `已处理 ${entryId}`)
+        window.setTimeout(() => setToast(null), 3000)
+      } catch (e) {
+        setToast(e instanceof Error ? e.message : String(e))
+        window.setTimeout(() => setToast(null), 5000)
+      }
+    }
+  }
+
   const checkNetworkUpdates = async () => {
     if (busy) return
     setBusy(true)
     try {
       await run('ensureDefaultNetworkLibrary')
-      const res = apply(await invoke('checkNetworkUpdates'))
+      const res = apply(
+        await invoke<{
+          reapplyHints?: Array<{
+            entryId?: string
+            networkEntryId?: string
+            message?: string
+            skillName?: string
+          }>
+        }>('checkNetworkUpdates'),
+      )
       setToast(res.message || '检查完成')
       window.setTimeout(() => setToast(null), 4000)
+      const hints =
+        (
+          res.data as
+            | {
+                reapplyHints?: Array<{
+                  entryId?: string
+                  networkEntryId?: string
+                  message?: string
+                  skillName?: string
+                }>
+              }
+            | undefined
+        )?.reapplyHints ?? []
+      if (hints.length > 0) {
+        setBusy(false)
+        await handleReapplyHints(hints)
+        return
+      }
     } catch (e) {
       setToast(e instanceof Error ? e.message : String(e))
       window.setTimeout(() => setToast(null), 5000)
@@ -1220,9 +1342,134 @@ export default function App() {
     if (!ok) return
     setBusy(true)
     try {
-      const res = apply(await invoke('applyNetworkCacheUpdate', { sourceIds: [] }))
+      const res = apply(
+        await invoke<{
+          reapplyHints?: Array<{
+            entryId?: string
+            networkEntryId?: string
+            message?: string
+            skillName?: string
+          }>
+        }>('applyNetworkCacheUpdate', { sourceIds: [] }),
+      )
       setToast(res.message || '缓存已更新')
       window.setTimeout(() => setToast(null), 4000)
+      const hints = (res.data as { reapplyHints?: Array<{ entryId?: string }> } | undefined)
+        ?.reapplyHints
+      if (Array.isArray(hints) && hints.length > 0) {
+        setBusy(false)
+        await handleReapplyHints(hints)
+        return
+      }
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : String(e))
+      window.setTimeout(() => setToast(null), 5000)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const fetchNetworkNavSource = async (kind: 'official' | 'popular', id: string) => {
+    if (busy) return
+    setBusy(true)
+    try {
+      await run('ensureDefaultNetworkLibrary')
+      const res = apply(await invoke('fetchNetworkNavSource', { kind, id }))
+      setToast(res.message || '已拉取')
+      window.setTimeout(() => setToast(null), 4000)
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : String(e))
+      window.setTimeout(() => setToast(null), 6000)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const refreshNetworkHeat = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      await run('ensureDefaultNetworkLibrary')
+      const res = apply(await invoke('refreshNetworkHeat'))
+      setToast(res.message || '热度已刷新')
+      window.setTimeout(() => setToast(null), 4000)
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : String(e))
+      window.setTimeout(() => setToast(null), 5000)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const cleanupNetworkCache = async () => {
+    if (busy) return
+    if (!window.confirm('清理索引中已无 source 的缓存，并只保留每个源最近 1 份 .bak？')) return
+    setBusy(true)
+    try {
+      const res = apply(await invoke('cleanupNetworkCache', { unusedOnly: true }))
+      setToast(res.message || '清理完成')
+      window.setTimeout(() => setToast(null), 4000)
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : String(e))
+      window.setTimeout(() => setToast(null), 5000)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const searchSkillsSh = async () => {
+    if (busy) return
+    if (!snap?.skillsShConfigured) {
+      setToast('需自行申请 skills.sh API Key；当前使用固化热门清单')
+      window.setTimeout(() => setToast(null), 5000)
+      return
+    }
+    const q = window.prompt('skills.sh 搜索词')
+    if (!q?.trim()) return
+    setBusy(true)
+    try {
+      const res = apply(await invoke('searchSkillsSh', { q: q.trim() }))
+      const items = (res.data as { searchItems?: { name: string; url: string }[] } | undefined)
+        ?.searchItems
+      if (items?.length) {
+        const pick = window.prompt(
+          (res.message || '') +
+            '\n\n输入序号拉取（0 取消）:\n' +
+            items
+              .slice(0, 12)
+              .map((it, i) => `${i + 1}. ${it.name} — ${it.url}`)
+              .join('\n'),
+          '1',
+        )
+        const n = Number(pick)
+        if (n >= 1 && n <= items.length) {
+          const url = items[n - 1].url
+          const fr = apply(await invoke('fetchNetworkSource', { urlOrBaselineId: url }))
+          setToast(fr.message || '已拉取')
+        } else {
+          setToast(res.message || '已搜索')
+        }
+      } else {
+        setToast(res.message || '无结果')
+      }
+      window.setTimeout(() => setToast(null), 5000)
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : String(e))
+      window.setTimeout(() => setToast(null), 6000)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const setNetworkIntendedLevel = async (level: '' | 'L0' | 'L1' | 'L2') => {
+    if (busy || !snap) return
+    const ids = snap.selectedEntryIds.filter((id) => id.startsWith('net:'))
+    if (!ids.length) return
+    setBusy(true)
+    try {
+      const res = apply(await invoke('setNetworkIntendedLevel', { entryIds: ids, level }))
+      setToast(res.message || '已写入意向层级')
+      window.setTimeout(() => setToast(null), 3000)
     } catch (e) {
       setToast(e instanceof Error ? e.message : String(e))
       window.setTimeout(() => setToast(null), 5000)
@@ -1270,7 +1517,20 @@ export default function App() {
   }))
   const filteredMissing = filterItems(snap.missingItems)
   const filteredOther = filterItems(snap.inLibraryOtherItems)
-  const filteredNetwork = filterItems(snap.networkLibraryItems ?? [])
+  const matchNetworkNav = (item: LibraryListItemDto) => {
+    if (!networkNavSel) return true
+    if (networkNavSel.kind === 'popular') {
+      return (item.sourceId || '') === networkNavSel.id
+    }
+    const node = (snap.networkOfficialNav ?? []).find((n) => n.id === networkNavSel.id)
+    if (!node) return true
+    if (node.baselineId && item.sourceId === node.baselineId) return true
+    if (node.primaryRepoUrl && item.sourceUrl === node.primaryRepoUrl) return true
+    const url = node.primaryRepoUrl.trim().replace(/\.git$/i, '').replace(/\/$/, '')
+    if (url && item.sourceUrl?.replace(/\.git$/i, '').replace(/\/$/, '') === url) return true
+    return false
+  }
+  const filteredNetwork = filterItems(snap.networkLibraryItems ?? []).filter(matchNetworkNav)
   const filteredOtherIds = new Set(filteredOther.map((x) => x.entryId))
   const filterClusterTree = (nodes: ClusterNodeDto[]): ClusterNodeDto[] => {
     if (!q) return nodes
@@ -1292,11 +1552,12 @@ export default function App() {
   const sectionContainerCount = filteredSections.reduce((n, s) => n + s.inContainerItems.length, 0)
   const sectionHistoryCount = filteredSections.reduce((n, s) => n + s.historyItems.length, 0)
   const totalVisible =
-    sectionContainerCount +
-    sectionHistoryCount +
-    filteredMissing.length +
-    filteredOther.length +
-    filteredNetwork.length
+    navShelf === 'network'
+      ? filteredNetwork.length
+      : sectionContainerCount +
+        sectionHistoryCount +
+        filteredMissing.length +
+        filteredOther.length
   const totalAll =
     containerSections.reduce(
       (n, s) => n + (s.inContainerItems?.length ?? 0) + (s.historyItems?.length ?? 0),
@@ -1307,8 +1568,9 @@ export default function App() {
     (snap.networkLibraryItems?.length ?? 0)
   const isFlatGroup = snap.clusterModeIndex === 2
 
-  /** 列表面板可见顺序（各工作区容器 → 曾用于 → 缺失 → 永久库），供 Shift 范围选 */
+  /** 列表面板可见顺序（网络货架=工作台；本地=容器→曾用于→缺失→永久库），供 Shift 范围选 */
   const panelEntryOrder = (() => {
+    if (navShelf === 'network') return filteredNetwork.map((i) => i.entryId)
     const fromTree = (nodes: ClusterNodeDto[]): string[] => {
       const out: string[] = []
       for (const n of nodes) {
@@ -1324,7 +1586,6 @@ export default function App() {
       ...(isFlatGroup
         ? filteredOther.map((i) => i.entryId)
         : fromTree(filteredRoots)),
-      ...filteredNetwork.map((i) => i.entryId),
     ]
   })()
 
@@ -1585,12 +1846,78 @@ export default function App() {
     { label: '刷新', onClick: () => void runRefresh() },
   ]
 
-  /** 最左侧导航栏空白处右键 */
+  /** 最左侧导航栏空白处右键（本地货架） */
   const navBlankMenu = (): MenuItem[] => [
     { label: '添加容器', onClick: () => void openAddContainer() },
     { label: '扫描建库', title: SCAN_BUILD_HINT, onClick: () => void openScanProjects() },
     { label: '刷新', onClick: () => void runRefresh() },
   ]
+
+  /** 网络货架空白处右键（不含本地「添加容器」） */
+  const networkBlankMenu = (): MenuItem[] => [
+    { label: '粘贴 Git URL', onClick: () => void fetchNetworkGitUrl() },
+    { label: '检查更新', onClick: () => void checkNetworkUpdates() },
+    { label: '刷新热度', onClick: () => void refreshNetworkHeat() },
+    {
+      label: '打开网络库目录',
+      disabled: !snap.isNetworkLibraryConfigured,
+      onClick: () => void run('openPath', { path: snap.networkLibraryRootDisplay }),
+    },
+    {
+      label: '配置网络库目录',
+      onClick: () => void run('chooseNetworkLibraryRoot'),
+    },
+  ]
+
+  /** 网络侧栏源行右键：拉取 / 置顶 / 打开仓库 / 筛选 */
+  const networkSourceMenu = (
+    kind: 'official' | 'popular',
+    id: string,
+    node: NetworkNavNodeDto,
+  ): MenuItem[] => {
+    const canFetch = Boolean(node.hasDefaultRepo && node.primaryRepoUrl?.trim())
+    const repoUrl = node.primaryRepoUrl?.trim() || ''
+    return [
+      {
+        label: '拉取当前源',
+        disabled: busy || !canFetch,
+        title: canFetch
+          ? `拉取 ${repoUrl}`
+          : '无默认仓；请粘贴 Git URL 或在设置中配置官方仓覆盖',
+        onClick: () => {
+          setNetworkNavSel({ kind, id })
+          void fetchNetworkNavSource(kind, id)
+        },
+      },
+      {
+        label: node.pinned ? '取消置顶' : '置顶',
+        onClick: () =>
+          void run('setNetworkPin', {
+            section: kind,
+            id,
+            pinned: !node.pinned,
+          }),
+      },
+      {
+        label: '在浏览器打开仓库',
+        disabled: !repoUrl,
+        title: repoUrl || '无仓库 URL',
+        onClick: () => {
+          // Tauri WebView 内 window.open 常被拦截；走系统 shell（http(s) 已由 open_path 支持）
+          void run('openPath', { path: repoUrl }).then((res) => {
+            if (res && res.ok === false) {
+              setToast(res.message || '无法打开仓库链接')
+              window.setTimeout(() => setToast(null), 4000)
+            }
+          })
+        },
+      },
+      {
+        label: '仅筛选此源',
+        onClick: () => setNetworkNavSel({ kind, id }),
+      },
+    ]
+  }
 
   const projectMenu = (projectId: string): MenuItem[] => {
     // 菜单与删除逻辑不区分「置顶容器/容器」；pinned 只影响「移入置顶容器/移入容器」标签
@@ -1640,39 +1967,6 @@ export default function App() {
           {busy ? '处理中…' : '扫描建库'}
         </button>
         <button onClick={() => void run('chooseLibraryRoot', { forcePrompt: true })}>设置永久库</button>
-        <button
-          type="button"
-          disabled={busy}
-          title="拉取官方示例仓到网络库（只读橱窗）"
-          onClick={() => void fetchNetworkBaseline('anthropics-skills')}
-        >
-          拉取 Anthropic 基线
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          title="拉取 Vercel agent-skills 到网络库"
-          onClick={() => void fetchNetworkBaseline('vercel-agent-skills')}
-        >
-          拉取 Vercel 基线
-        </button>
-        <button type="button" disabled={busy} onClick={() => void fetchNetworkGitUrl()}>
-          粘贴 Git URL
-        </button>
-        <button type="button" disabled={busy} onClick={() => void checkNetworkUpdates()}>
-          检查网络更新
-        </button>
-        <button type="button" disabled={busy} onClick={() => void applyNetworkCacheUpdates()}>
-          更新网络缓存
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          title="将选中的网络库条目复制进永久库（可经冲突窗）"
-          onClick={() => void promoteSelectedFromNetwork()}
-        >
-          存入永久库
-        </button>
         <button onClick={() => void runRefresh()}>刷新</button>
         <button type="button" onClick={() => setSettingsOpen(true)}>
           设置
@@ -1773,18 +2067,94 @@ export default function App() {
                       className="panel"
                       onContextMenu={(e) => {
                         e.stopPropagation()
-                        showMenu(e, navBlankMenu())
+                        showMenu(
+                          e,
+                          navShelf === 'network' ? networkBlankMenu() : navBlankMenu(),
+                        )
                       }}
                     >
-                      <NavTree
-                        nodes={snap.navNodes}
-                        selectedKind={snap.selectedNavKind}
-                        selectedProjectId={snap.selectedProjectId}
-                        selectedGlobalTool={snap.selectedGlobalTool ?? 'cursor'}
-                        onSelect={(kind, projectId, tool) => void run('setNav', { kind, projectId, tool })}
-                        onContextGlobal={(e, tool) => showMenu(e, globalMenu(tool))}
-                        onContextProject={(e, id) => showMenu(e, projectMenu(id))}
-                      />
+                      <div className="nav-shelf-toggle" role="tablist" aria-label="货架">
+                        <button
+                          type="button"
+                          role="tab"
+                          className={navShelf === 'local' ? 'active' : ''}
+                          aria-selected={navShelf === 'local'}
+                          onClick={() => setNavShelf('local')}
+                        >
+                          本地
+                        </button>
+                        <button
+                          type="button"
+                          role="tab"
+                          className={navShelf === 'network' ? 'active' : ''}
+                          aria-selected={navShelf === 'network'}
+                          onClick={() => {
+                            setNavShelf('network')
+                            void run('ensureDefaultNetworkLibrary')
+                          }}
+                        >
+                          网络
+                        </button>
+                      </div>
+                      {navShelf === 'local' ? (
+                        <NavTree
+                          nodes={snap.navNodes}
+                          selectedKind={snap.selectedNavKind}
+                          selectedProjectId={snap.selectedProjectId}
+                          selectedGlobalTool={snap.selectedGlobalTool ?? 'cursor'}
+                          onSelect={(kind, projectId, tool) =>
+                            void run('setNav', { kind, projectId, tool })
+                          }
+                          onContextGlobal={(e, tool) => showMenu(e, globalMenu(tool))}
+                          onContextProject={(e, id) => showMenu(e, projectMenu(id))}
+                        />
+                      ) : (
+                        <NetworkNav
+                          busy={busy}
+                          rootDisplay={snap.networkLibraryRootDisplay || ''}
+                          configured={Boolean(snap.isNetworkLibraryConfigured)}
+                          itemCount={(snap.networkLibraryItems ?? []).length}
+                          official={snap.networkOfficialNav ?? []}
+                          popular={snap.networkPopularNav ?? []}
+                          selected={networkNavSel}
+                          officialGeneralOpen={networkOfficialGeneralOpen}
+                          popularGeneralOpen={networkPopularGeneralOpen}
+                          skillsShConfigured={Boolean(snap.skillsShConfigured)}
+                          onPickRoot={() => void run('chooseNetworkLibraryRoot')}
+                          onOpenRoot={() =>
+                            void run('openPath', { path: snap.networkLibraryRootDisplay })
+                          }
+                          onSelectAll={() => setNetworkNavSel(null)}
+                          onSelectNode={(kind, id) => setNetworkNavSel({ kind, id })}
+                          onToggleOfficialGeneral={() =>
+                            setNetworkOfficialGeneralOpen((v) => !v)
+                          }
+                          onTogglePopularGeneral={() =>
+                            setNetworkPopularGeneralOpen((v) => !v)
+                          }
+                          onTogglePin={(kind, id, pinned) =>
+                            void run('setNetworkPin', {
+                              section: kind,
+                              id,
+                              pinned,
+                            })
+                          }
+                          onFetchAnthropic={() => void fetchNetworkBaseline('anthropics-skills')}
+                          onFetchVercel={() => void fetchNetworkBaseline('vercel-agent-skills')}
+                          onPasteGitUrl={() => void fetchNetworkGitUrl()}
+                          onCheckUpdates={() => void checkNetworkUpdates()}
+                          onApplyCache={() => void applyNetworkCacheUpdates()}
+                          onPromote={() => void promoteSelectedFromNetwork()}
+                          onFetchNode={(kind, id) => void fetchNetworkNavSource(kind, id)}
+                          onRefreshHeat={() => void refreshNetworkHeat()}
+                          onCleanupCache={() => void cleanupNetworkCache()}
+                          onSearchSkillsSh={() => void searchSkillsSh()}
+                          onContextNode={(e, kind, id, node) =>
+                            showMenu(e, networkSourceMenu(kind, id, node))
+                          }
+                          onContextBlank={(e) => showMenu(e, networkBlankMenu())}
+                        />
+                      )}
                     </aside>
                   ),
                 },
@@ -1835,7 +2205,31 @@ export default function App() {
                     {snap.libraryRootDisplay}
                   </button>
                 </div>
-                {!snap.isLibraryConfigured ? (
+                {navShelf === 'network' ? (
+                  <NetworkWorkbench
+                    busy={busy}
+                    items={filteredNetwork}
+                    selectedIds={selected}
+                    onToggle={(id, e) =>
+                      toggleSelect(id, e.ctrlKey || e.metaKey, e.shiftKey)
+                    }
+                    onSelectAllFiltered={() => {
+                      const ids = filteredNetwork.map((x) => x.entryId)
+                      void run('setSelection', { entryIds: ids })
+                    }}
+                    onSetLevel={(level) => void setNetworkIntendedLevel(level)}
+                    onPromote={() => void promoteSelectedFromNetwork()}
+                    onFetchCurrent={() => {
+                      if (!networkNavSel) {
+                        setToast('请先在侧栏选择官方工作区或热门源')
+                        window.setTimeout(() => setToast(null), 3000)
+                        return
+                      }
+                      void fetchNetworkNavSource(networkNavSel.kind, networkNavSel.id)
+                    }}
+                    hasNavFilter={networkNavSel != null}
+                  />
+                ) : !snap.isLibraryConfigured ? (
                   <div className="empty">请先设置永久库目录</div>
                 ) : totalVisible === 0 ? (
                   <div className="empty" style={{ padding: '12px 10px' }}>
@@ -1952,30 +2346,6 @@ export default function App() {
                         }
                       />
                     )}
-                    <ItemSection
-                      tone="library"
-                      title={snap.networkLibraryHeader || '网络库（开源橱窗）'}
-                      libraryRoot={snap.networkLibraryRootDisplay || ''}
-                      headerExtra={
-                        <span className="section-count" title="只读；存入永久库后才可编辑/部署">
-                          {snap.networkLibrarySummary || '0'}
-                          {!snap.isNetworkLibraryConfigured ? ' · 未配置' : ''}
-                        </span>
-                      }
-                      hint={
-                        <div className="section-hint" role="note">
-                          检疫橱窗：只读浏览开源 skills/rules。主操作：「存入永久库」「检查更新」。不可直接部署到容器。规范说明见{' '}
-                          <a href="https://agentskills.io" target="_blank" rel="noreferrer">
-                            agentskills.io
-                          </a>
-                          。
-                        </div>
-                      }
-                      items={filteredNetwork}
-                      selected={selected}
-                      onSelect={toggleSelect}
-                      onContext={(e, id) => void openEntryMenu(e, id, 'library')}
-                    />
                   </>
                 )}
               </section>
@@ -2099,6 +2469,25 @@ export default function App() {
       </div>
 
       {toast && <div className="toast">{toast}</div>}
+      {firstTip ? (
+        <div className="toast tip-banner" role="status">
+          五分钟路径：扫描建库 → 入库决议 → 部署到焦点工作区 → 改容器后再刷新看冲突。详述见 Docs/06。
+          <button
+            type="button"
+            style={{ marginLeft: 12 }}
+            onClick={() => {
+              try {
+                localStorage.setItem('ccm.firstTip', '0')
+              } catch {
+                /* ignore */
+              }
+              setFirstTip(false)
+            }}
+          >
+            知道了
+          </button>
+        </div>
+      ) : null}
       {ctx && <ContextMenu state={ctx} onClose={() => setCtx(null)} />}
 
       {projectDialog && (
@@ -2301,6 +2690,76 @@ export default function App() {
             setBusy(true)
             try {
               const res = apply(await invoke('updateWorkspaceConfig', { ...patch }))
+              return Boolean(res.ok)
+            } catch (e) {
+              setToast(e instanceof Error ? e.message : String(e))
+              window.setTimeout(() => setToast(null), 5000)
+              return false
+            } finally {
+              setBusy(false)
+            }
+          }}
+          onPreviewDrift={async () => {
+            try {
+              const res = await invoke<{
+                message: string
+                items: Array<{ entryId: string; workspaceId: string; reason: string }>
+              }>('previewLibraryDrift')
+              if (!res.ok || !res.data) return null
+              return {
+                message: res.data.message || res.message || '',
+                items: res.data.items ?? [],
+              }
+            } catch (e) {
+              setToast(e instanceof Error ? e.message : String(e))
+              window.setTimeout(() => setToast(null), 5000)
+              return null
+            }
+          }}
+          onListRecipes={async () => {
+            try {
+              const res = await invoke<{
+                recipes: Array<{ id: string; name: string; entryIds: string[]; workspaceId: string }>
+              }>('listDeployRecipes')
+              return Array.isArray(res.data?.recipes) ? res.data.recipes : []
+            } catch {
+              return []
+            }
+          }}
+          onSaveRecipe={async (recipe) => {
+            setBusy(true)
+            try {
+              const res = await invoke('saveDeployRecipe', { ...recipe })
+              setToast(res.message || '配方已保存')
+              window.setTimeout(() => setToast(null), 3000)
+              return Boolean(res.ok)
+            } catch (e) {
+              setToast(e instanceof Error ? e.message : String(e))
+              window.setTimeout(() => setToast(null), 5000)
+              return false
+            } finally {
+              setBusy(false)
+            }
+          }}
+          onApplyRecipe={async (id) => {
+            setBusy(true)
+            try {
+              const res = apply(await invoke('applyDeployRecipe', { recipeId: id }))
+              setToast(res.message || '配方已部署')
+              window.setTimeout(() => setToast(null), 4000)
+              return Boolean(res.ok)
+            } catch (e) {
+              setToast(e instanceof Error ? e.message : String(e))
+              window.setTimeout(() => setToast(null), 5000)
+              return false
+            } finally {
+              setBusy(false)
+            }
+          }}
+          onDeleteRecipe={async (id) => {
+            setBusy(true)
+            try {
+              const res = await invoke('deleteDeployRecipe', { recipeId: id })
               return Boolean(res.ok)
             } catch (e) {
               setToast(e instanceof Error ? e.message : String(e))
@@ -3413,9 +3872,29 @@ function ConflictCompareModal({
     return out
   })()
 
-  const confirmAll = (choice: ConflictChoice) => {
-    // 决议仍覆盖原始全部 key（含路径重复项），避免后端仍拦未决议冲突
+  const [picked, setPicked] = useState<Record<string, ConflictChoice>>({})
+
+  const idOf = (c: PathConflictDto) => (c.suggestedId || c.key).toLowerCase()
+
+  const setChoiceForId = (uid: string, choice: ConflictChoice) => {
+    setPicked((prev) => ({ ...prev, [uid]: choice }))
+  }
+
+  const applyBatch = (choice: ConflictChoice) => {
     onConfirm(conflicts.map((c) => ({ key: c.key, choice })))
+  }
+
+  const applyPickedOrBatch = () => {
+    const allPicked = uniqueConflicts.every((c) => picked[idOf(c)])
+    if (!allPicked) {
+      return
+    }
+    onConfirm(
+      conflicts.map((c) => ({
+        key: c.key,
+        choice: picked[idOf(c)] ?? 'skip',
+      })),
+    )
   }
 
   const formatBytes = (bytes?: number): string => {
@@ -3424,6 +3903,12 @@ function ConflictCompareModal({
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
     return `${(bytes / 1024 / 1024).toFixed(2)} MB`
   }
+
+  const overwriteLabel =
+    operation === 'promoteFromNetwork' ? '采用网络库' : '保留容器'
+  const mergeLabel = '保留永久库'
+  const readyCount = uniqueConflicts.filter((c) => picked[idOf(c)]).length
+  const allReady = uniqueConflicts.length > 0 && readyCount === uniqueConflicts.length
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -3434,15 +3919,18 @@ function ConflictCompareModal({
           {conflicts.length > uniqueConflicts.length
             ? `（已合并 ${conflicts.length - uniqueConflicts.length} 条重复）`
             : ''}
-          。
+          。已选 {readyCount}/{uniqueConflicts.length}。底部「全部采用…」立即提交同策略；或逐项点选后「确认应用」。
           {operation === 'promoteFromNetwork'
             ? '左侧=网络库缓存、右侧=永久库；「保留永久库」= 不覆盖库；「采用网络库」= 用网络缓存覆盖永久库。'
-            : '左侧=容器、右侧=永久库；在对比区下方点对应策略（取消可退出）。「保留永久库」= 用库覆盖容器（两边对齐到库）；「保留容器」= 用容器覆盖库。'}
+            : '左侧=容器、右侧=永久库。「保留永久库」= 用库覆盖容器；「保留容器」= 用容器覆盖库。'}
         </p>
 
         <div className="modal-scroll">
           <div className="conflict-list">
-            {uniqueConflicts.map((c) => (
+            {uniqueConflicts.map((c) => {
+              const uid = idOf(c)
+              const cur = picked[uid]
+              return (
               <div className="conflict-card" key={c.key}>
                 <div className="name">
                   [{c.kind}] {c.suggestedId}
@@ -3452,6 +3940,7 @@ function ConflictCompareModal({
                     {c.sourceSize != null
                       ? ` · ${formatBytes(c.sourceSize)} / ${formatBytes(c.targetSize)}`
                       : ''}
+                    {cur ? ` · 已选：${cur === 'overwrite' ? overwriteLabel : cur === 'merge' ? mergeLabel : '另存为'}` : ''}
                   </span>
                 </div>
 
@@ -3476,29 +3965,67 @@ function ConflictCompareModal({
                   }
                 />
 
-                <div className="conflict-pane-actions" role="group" aria-label="冲突处理策略">
+                <div className="conflict-pane-actions" role="group" aria-label={`单项策略 ${c.suggestedId}`}>
                   <button
                     type="button"
-                    className="primary"
+                    className={cur === 'overwrite' ? 'primary' : undefined}
                     disabled={busy}
-                    onClick={() => confirmAll('overwrite')}
+                    onClick={() => setChoiceForId(uid, 'overwrite')}
                   >
-                    {operation === 'promoteFromNetwork' ? '采用网络库' : '保留容器'}
+                    {overwriteLabel}
                   </button>
-                  <button type="button" disabled={busy} onClick={() => confirmAll('saveAs')}>
+                  <button
+                    type="button"
+                    className={cur === 'saveAs' ? 'primary' : undefined}
+                    disabled={busy}
+                    onClick={() => setChoiceForId(uid, 'saveAs')}
+                  >
                     另存为
                   </button>
-                  <button type="button" disabled={busy} onClick={() => confirmAll('merge')}>
-                    保留永久库
+                  <button
+                    type="button"
+                    className={cur === 'merge' ? 'primary' : undefined}
+                    disabled={busy}
+                    onClick={() => setChoiceForId(uid, 'merge')}
+                  >
+                    {mergeLabel}
                   </button>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 
         <div className="actions actions-conflict">
+          <div className="actions-conflict-strategies" role="group" aria-label="全部采用同一策略">
+            <button
+              type="button"
+              className="primary"
+              disabled={busy || uniqueConflicts.length === 0}
+              onClick={() => applyBatch('overwrite')}
+            >
+              全部采用{overwriteLabel}
+            </button>
+            <button
+              type="button"
+              disabled={busy || uniqueConflicts.length === 0}
+              onClick={() => applyBatch('saveAs')}
+            >
+              全部另存为
+            </button>
+            <button
+              type="button"
+              disabled={busy || uniqueConflicts.length === 0}
+              onClick={() => applyBatch('merge')}
+            >
+              全部采用{mergeLabel}
+            </button>
+          </div>
           <div className="actions-conflict-cancel">
+            <button type="button" disabled={busy || !allReady} onClick={() => applyPickedOrBatch()}>
+              确认应用（{readyCount}/{uniqueConflicts.length}）
+            </button>
             <button type="button" disabled={busy} onClick={onClose}>
               取消
             </button>

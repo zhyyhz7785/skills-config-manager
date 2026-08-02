@@ -6,5 +6,10 @@ commands.allow = [
   "withdraw",
   "withdraw_batch",
   "unmanage",
-  "purge_missing_entries"
+  "purge_missing_entries",
+  "preview_library_drift",
+  "list_deploy_recipes",
+  "save_deploy_recipe",
+  "delete_deploy_recipe",
+  "apply_deploy_recipe"
 ]
