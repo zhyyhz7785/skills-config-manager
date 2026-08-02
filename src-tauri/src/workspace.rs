@@ -305,4 +305,87 @@ mod tests {
         assert_eq!(vis[0].id, "cursor");
         assert_eq!(vis[1].id, "claude");
     }
+
+    /// Plan/04 #4：改容器根并保存 → 重载 settings 后路径保持（同「浏览…」落盘后重启）。
+    #[test]
+    fn container_root_survives_settings_file_roundtrip() {
+        use crate::settings::{load_settings_from, save_settings_to};
+        use std::fs;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let custom = dir.path().join("custom-claude-root");
+        fs::create_dir_all(&custom).unwrap();
+
+        let mut s = AppSettings::default();
+        ensure_workspaces_migrated(&mut s);
+        let custom_disp = crate::project_discovery::to_display_path(&custom.to_string_lossy());
+        if let Some(w) = s.workspaces.iter_mut().find(|w| w.id == "claude") {
+            w.enabled = true;
+            w.container_root = custom_disp.clone();
+        }
+        save_settings_to(&path, &s).unwrap();
+
+        let mut loaded = load_settings_from(&path).unwrap();
+        ensure_workspaces_migrated(&mut loaded);
+        let root = resolve_workspace_container_root(&loaded, "claude");
+        assert_eq!(
+            root.to_lowercase(),
+            custom_disp.to_lowercase(),
+            "reload must keep custom Claude container root"
+        );
+    }
+
+    /// Plan/04 #5：默认工作区 radio 落盘；隐藏焦点后回落到 default（同设置可见性逻辑）。
+    #[test]
+    fn default_workspace_persists_and_visibility_falls_back_focus() {
+        use crate::settings::{load_settings_from, save_settings_to};
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+
+        let mut s = AppSettings::default();
+        ensure_workspaces_migrated(&mut s);
+        for id in ["cursor", "claude"] {
+            if let Some(w) = s.workspaces.iter_mut().find(|w| w.id == id) {
+                w.enabled = true;
+            }
+        }
+        // 同 set_default_workspace：设 Claude 为默认并保证可见
+        s.default_workspace_id = "claude".into();
+        s.visible_workspace_ids = vec!["cursor".into(), "claude".into()];
+        s.selected_global_tool = "claude".into();
+        save_settings_to(&path, &s).unwrap();
+
+        let mut loaded = load_settings_from(&path).unwrap();
+        ensure_workspaces_migrated(&mut loaded);
+        assert_eq!(loaded.default_workspace_id, "claude");
+        assert!(loaded
+            .visible_workspace_ids
+            .iter()
+            .any(|v| v.eq_ignore_ascii_case("claude")));
+
+        // 同 set_workspace_visibility：取消显示 Claude（当前焦点）→ 焦点回落到 default（若仍可见）否则首个可见
+        loaded.visible_workspace_ids = vec!["cursor".into()];
+        let focus = loaded.selected_global_tool.clone();
+        if !loaded
+            .visible_workspace_ids
+            .iter()
+            .any(|v| v.eq_ignore_ascii_case(&focus))
+        {
+            let next = if loaded
+                .visible_workspace_ids
+                .iter()
+                .any(|v| v.eq_ignore_ascii_case(&loaded.default_workspace_id))
+            {
+                loaded.default_workspace_id.clone()
+            } else {
+                loaded.visible_workspace_ids[0].clone()
+            };
+            loaded.selected_global_tool = next;
+        }
+        // default=claude 已不可见 → 焦点落到 cursor；DefaultWorkspaceId 仍保留
+        assert_eq!(loaded.selected_global_tool, "cursor");
+        assert_eq!(loaded.default_workspace_id, "claude");
+    }
 }

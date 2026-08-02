@@ -4,6 +4,7 @@ version = "0.2.0"
 description = "CCM Tauri2 desktop shell"
 authors = ["CCM"]
 edition = "2021"
+default-run = "ccm-tauri2"
 
 [lib]
 name = "ccm_tauri2_lib"
