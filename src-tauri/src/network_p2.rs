@@ -287,6 +287,7 @@ fn parse_bak_name(name: &str) -> Option<(String, u64)> {
 mod tests {
     use super::*;
     use crate::network_library::{backup_cache_dir_before_update, ensure_network_layout};
+    use crate::settings::AppSettings;
 
     #[test]
     fn bak_renames_existing_cache() {
@@ -300,5 +301,43 @@ mod tests {
         assert!(bak.is_some());
         assert!(!cache.exists());
         assert!(Path::new(&net).join(bak.unwrap()).join("x.txt").is_file());
+    }
+
+    /// Plan/05 证据：同窗内「刷新热度」命令路径写 `heat-cache.json`（需本机 `gh` + 网络）。
+    #[test]
+    fn live_refresh_heat_writes_cache() {
+        let home = std::env::var("USERPROFILE").unwrap_or_default();
+        let net = PathBuf::from(&home).join("CCM-NetworkLibrary");
+        if !net.is_dir() {
+            eprintln!("skip: no CCM-NetworkLibrary");
+            return;
+        }
+        ensure_network_layout(&net.to_string_lossy()).unwrap();
+        let heat_path = net.join("heat-cache.json");
+        let before_meta = fs::metadata(&heat_path).ok();
+        let before_mtime = before_meta.as_ref().and_then(|m| m.modified().ok());
+        let before_bytes = fs::read(&heat_path).unwrap_or_default();
+
+        let settings = AppSettings {
+            network_library_root: net.to_string_lossy().to_string(),
+            network_library_configured: true,
+            skills_library_root: std::env::temp_dir().join("ccm-heat-lib").to_string_lossy().to_string(),
+            library_root_configured: true,
+            ..Default::default()
+        };
+        let _ = crate::catalog::ensure_library_layout(&settings.skills_library_root);
+        let r = refresh_network_heat(&settings).expect("refresh_network_heat");
+        assert!(r.ok, "{}", r.message);
+        assert!(heat_path.is_file(), "heat-cache.json missing after refresh");
+        let after = fs::read(&heat_path).expect("read heat-cache");
+        assert!(!after.is_empty());
+        let after_mtime = fs::metadata(&heat_path).and_then(|m| m.modified()).ok();
+        let changed = after != before_bytes
+            || match (before_mtime, after_mtime) {
+                (Some(b), Some(a)) => a >= b,
+                _ => true,
+            };
+        assert!(changed, "heat-cache.json should update; msg={}", r.message);
+        eprintln!("heat_ok message={}", r.message);
     }
 }

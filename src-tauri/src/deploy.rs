@@ -293,6 +293,52 @@ mod tests {
         assert!(!e.deployed_path.is_empty());
     }
 
+    /// Plan/04 GUI 契约：焦点 Claude 后部署写入 Claude 容器根（同工具栏「部署 → Claude」IPC）。
+    #[test]
+    fn deploy_to_focus_global_workspace_claude() {
+        let dir = tempfile::tempdir().unwrap();
+        let lib_root = dir.path().to_string_lossy().to_string();
+        ensure_library_layout(&lib_root).unwrap();
+        let claude = dir.path().join(".claude");
+        fs::create_dir_all(&claude).unwrap();
+        fs::create_dir_all(dir.path().join("skills/g1")).unwrap();
+        fs::write(dir.path().join("skills/g1/SKILL.md"), b"# g1\n").unwrap();
+        save_catalog(
+            &lib_root,
+            &{
+                let mut c = load_catalog(&lib_root).catalog;
+                c.entries.push(CatalogEntry {
+                    id: "g1".into(),
+                    kind: "skill".into(),
+                    library_path: "skills/g1/SKILL.md".into(),
+                    is_in_library: true,
+                    ..Default::default()
+                });
+                c
+            },
+        )
+        .unwrap();
+        let mut settings = AppSettings {
+            skills_library_root: lib_root,
+            library_root_configured: true,
+            nav_kind: "global".into(),
+            selected_global_tool: "claude".into(),
+            ..Default::default()
+        };
+        crate::workspace::ensure_workspaces_migrated(&mut settings);
+        if let Some(w) = settings.workspaces.iter_mut().find(|w| w.id == "claude") {
+            w.container_root = claude.to_string_lossy().to_string();
+            w.enabled = true;
+        }
+        settings.visible_workspace_ids = vec!["cursor".into(), "claude".into()];
+        let r = deploy_entries(&settings, &["g1".into()]).unwrap();
+        assert!(r.ok, "{}", r.message);
+        assert!(
+            claude.join("skills/g1/SKILL.md").is_file(),
+            "expected deploy into Claude container"
+        );
+    }
+
     #[test]
     fn deploy_to_focus_global_workspace_claude() {
         let dir = tempfile::tempdir().unwrap();
