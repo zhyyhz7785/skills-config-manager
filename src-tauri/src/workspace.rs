@@ -294,17 +294,6 @@ mod tests {
         assert!(s.workspaces.len() >= 7);
     }
 
-    #[test]
-    fn dual_visible_workspaces_list_two_sections() {
-        let mut s = AppSettings::default();
-        ensure_workspaces_migrated(&mut s);
-        s.visible_workspace_ids = vec!["cursor".into(), "claude".into()];
-        let vis = list_visible_workspaces(&s);
-        assert_eq!(vis.len(), 2);
-        assert_eq!(vis[0].id, "cursor");
-        assert_eq!(vis[1].id, "claude");
-    }
-
     /// Plan/04 GUI 契约：设置勾选 Claude 显示 → 可见列表为两段。
     #[test]
     fn dual_visible_workspaces_list_two_sections() {
