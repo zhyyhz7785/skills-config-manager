@@ -6,7 +6,8 @@ release/
 .vite/
 *.log
 .DS_Store
-bin/
+/bin/
+!src-tauri/src/bin/
 obj/
 *.user
 *.suo
