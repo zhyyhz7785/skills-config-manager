@@ -1698,8 +1698,16 @@ mod p1_flow_tests {
         let snap = get_snapshot(None).unwrap();
         assert!(snap.catalog_healthy);
         assert_eq!(snap.in_library_other_items.len(), 2);
-        assert_eq!(snap.in_library_other_items[0].entry_id, "fixture-a");
-        assert_eq!(snap.in_library_other_items[0].kind_label, "技能");
+        let skill = snap
+            .in_library_other_items
+            .iter()
+            .find(|e| e.entry_id == "fixture-a")
+            .expect("skill fixture-a");
+        assert!(snap
+            .in_library_other_items
+            .iter()
+            .any(|e| e.entry_id == "fixture-b"));
+        assert_eq!(skill.kind_label, "技能");
         assert!(!snap.permanent_library_roots.is_empty());
 
         settings = load_settings().unwrap();

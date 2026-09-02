@@ -343,7 +343,7 @@ if (!libRs.includes('set_selection_light') || !bridge.includes('set_selection_li
   console.error('FAIL: set_selection_light 未接线（勾选类轻操作需免快照）')
   process.exit(1)
 }
-//    c. 网络列表：点行只勾选（toggleNetworkCheck）、点名称开文档（net-wb-name-link）
+//    c. 网络列表：点行只勾选（toggleNetworkCheck）、点名称开文档（ListEntryBody onOpenTitle）
 if (!appTsx.includes('toggleNetworkCheck') || !appTsx.includes('openNetworkDoc')) {
   console.error('FAIL: App 须保留 toggleNetworkCheck（点行勾选）与 openNetworkDoc（点名开文档）')
   process.exit(1)
@@ -395,8 +395,13 @@ if (!crepeTsx.includes("t('md.copyFull')") || !crepeTsx.includes("t('md.copyPlai
   console.error('FAIL: DetailMarkdownCrepe 须同时有「复制全文」与「复制纯文本」')
   process.exit(1)
 }
-if (!netShelf.includes('net-wb-name-link')) {
-  console.error('FAIL: NetworkShelf 名称单元格须为 net-wb-name-link（点名称打开文档）')
+const listEntryBody = fs.readFileSync(path.join(root, 'src/components/ListEntryBody.tsx'), 'utf8')
+if (!netShelf.includes('onOpenTitle') || !netShelf.includes('onOpenDoc')) {
+  console.error('FAIL: NetworkShelf 须点名称开文档（ListEntryBody onOpenTitle → onOpenDoc）')
+  process.exit(1)
+}
+if (!listEntryBody.includes('list-item-title-link') || !listEntryBody.includes('onOpenTitle')) {
+  console.error('FAIL: ListEntryBody 须用 list-item-title-link 点名称打开文档')
   process.exit(1)
 }
 console.log('Selection speed & name-link static checks OK')
@@ -568,9 +573,9 @@ if (!netShelf.includes("t('net.keepCacheOnFail')")) {
 if (
   !netShelf.includes('net-nav-cached') ||
   !netShelf.includes('net-nav-uncached') ||
-  !netShelf.includes("t('net.fetchUncached')")
+  !(netShelf.includes("t('net.fetchUncached") || netShelf.includes('net-nav-fetch-uncached'))
 ) {
-  console.error('FAIL: NetworkShelf 须含缓存色 class 与「拉取未缓存」')
+  console.error('FAIL: NetworkShelf 须含缓存色 class 与拉取未缓存入口')
   process.exit(1)
 }
 if (
