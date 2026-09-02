@@ -1,0 +1,11 @@
+[[permission]]
+identifier = "allow-deploy-withdraw"
+description = "Deploy / withdraw / purgeMissing / clear project skills"
+commands.allow = [
+  "deploy",
+  "withdraw",
+  "withdraw_batch",
+  "purge_missing_entries",
+  "preview_clear_project_skills",
+  "clear_project_skills"
+]

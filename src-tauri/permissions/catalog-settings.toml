@@ -1,0 +1,12 @@
+[[permission]]
+identifier = "allow-catalog-settings"
+description = "App settings + catalog file import/export + ring backup"
+commands.allow = [
+  "update_app_settings",
+  "reorder_project_scan_roots",
+  "reset_catalog",
+  "export_catalog",
+  "import_catalog",
+  "list_catalog_backups",
+  "restore_catalog_backup"
+]

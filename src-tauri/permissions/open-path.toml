@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-open-path"
+description = "Allow opening a path in OS"
+commands.allow = ["open_path"]

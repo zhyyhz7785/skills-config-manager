@@ -1,0 +1,8 @@
+[[permission]]
+identifier = "allow-backup-dual"
+description = "moveIntoBackup + getDualCopyTexts (M3 residual)"
+commands.allow = [
+  "preview_move_into_backup",
+  "move_into_backup_library",
+  "get_dual_copy_texts"
+]

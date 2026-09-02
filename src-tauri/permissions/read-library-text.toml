@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-read-library-text"
+description = "Read UTF-8 text of a library catalog entry file (path-guarded)"
+commands.allow = ["read_library_text"]

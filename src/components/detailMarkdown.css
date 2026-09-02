@@ -1,0 +1,652 @@
+/* CCM 详情 Markdown：消费 --hymd-* / --hymd-ds-*（由 ThemeGallery + Crepe 宿主注入） */
+
+.detail-md-editor .milkdown {
+  --crepe-color-background: var(--bg-editor, #ffffff);
+  --crepe-color-on-background: var(--text, #3b3b3b);
+  --crepe-color-surface: var(--bg-elevated, #ffffff);
+  --crepe-color-surface-low: var(--bg-panel, #f8f8f8);
+  --crepe-color-on-surface: var(--text, #3b3b3b);
+  --crepe-color-on-surface-variant: var(--text-muted, #6e6e6e);
+  --crepe-color-outline: var(--border, #e5e5e5);
+  --crepe-color-primary: var(--accent, #005fb8);
+  --crepe-color-secondary: var(--accent-soft, rgba(0, 95, 184, 0.15));
+  --crepe-color-on-secondary: var(--text, #3b3b3b);
+  --crepe-color-inverse: #2e3135;
+  --crepe-color-on-inverse: #eff0f7;
+  --crepe-color-inline-code: var(--hymd-ds-code-inline-fg, #a31515);
+  --crepe-color-error: #c72e0f;
+  --crepe-color-hover: var(--hover, #f2f2f2);
+  --crepe-color-selected: var(--list-active, #e4e6f1);
+  --crepe-color-inline-area: rgba(220, 220, 220, 0.4);
+
+  --crepe-font-title: 'Segoe UI', 'Microsoft YaHei UI', system-ui, sans-serif;
+  --crepe-font-default: 'Segoe UI', 'Microsoft YaHei UI', system-ui, sans-serif;
+  --crepe-font-code: Consolas, 'Courier New', ui-monospace, monospace;
+
+  --crepe-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --crepe-shadow-2: 0 4px 16px rgba(0, 0, 0, 0.12);
+
+  min-height: 120px;
+  background: var(--bg-editor, #ffffff);
+}
+
+.detail-md-editor .ProseMirror {
+  outline: none;
+  padding: 8px 26px 32px;
+  font-family: 'Segoe UI', 'Microsoft YaHei UI', system-ui, sans-serif;
+  font-size: var(--hymd-font-size, 14px);
+  line-height: var(--hymd-line-height, 22px);
+  color: var(--text, #3b3b3b);
+  word-wrap: break-word;
+  user-select: text;
+  -webkit-user-select: text;
+  /* 正文用自绘 .hymd-vscode-caret（2px）；隐藏原生细线 */
+  caret-color: transparent;
+}
+
+/* 只读页签：显式允许划选复制（禁编辑不禁选区） */
+.detail-md-crepe:has(.detail-md-readonly) .detail-md-editor .ProseMirror {
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+}
+
+/* VS Code 风自绘光标（对齐 HYmd） */
+.hymd-vscode-caret {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 2px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: var(--accent, #005fb8);
+  pointer-events: none;
+  z-index: 40;
+  will-change: transform, opacity;
+}
+
+.hymd-vscode-caret--visible {
+  display: block;
+}
+
+.hymd-vscode-caret--blink {
+  animation: hymd-vscode-caret-blink 1.06s step-end infinite;
+}
+
+@keyframes hymd-vscode-caret-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+body.hymd-gapcursor-caret .detail-md-editor .ProseMirror-gapcursor:after {
+  opacity: 0;
+}
+
+/* Crepe 选区浮动工具栏：浅色圆角浮层 + 阴影（对齐 HYmd） */
+.detail-md-editor .milkdown .milkdown-toolbar {
+  align-items: center;
+  padding: 4px;
+  background: var(--bg-elevated, #ffffff);
+  border: 1px solid var(--border, #e5e5e5);
+  border-radius: 2px;
+  box-shadow: var(--menu-shadow, 0 2px 8px rgba(0, 0, 0, 0.16));
+  overflow: hidden;
+}
+
+.detail-md-editor .milkdown .milkdown-toolbar .toolbar-item {
+  width: 28px;
+  height: 28px;
+  margin: 0 1px;
+  padding: 5px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background 120ms ease;
+}
+
+.detail-md-editor .milkdown .milkdown-toolbar .toolbar-item:hover {
+  background: var(--hover, rgba(128, 128, 128, 0.12));
+}
+
+.detail-md-editor .milkdown .milkdown-toolbar .toolbar-item:active,
+.detail-md-editor .milkdown .milkdown-toolbar .toolbar-item.active {
+  background: var(--accent-soft, rgba(0, 95, 184, 0.15));
+}
+
+.detail-md-editor .milkdown .milkdown-toolbar .toolbar-item svg {
+  width: 16px;
+  height: 16px;
+  color: var(--text, #3b3b3b);
+  fill: currentColor;
+}
+
+.detail-md-editor .milkdown .milkdown-toolbar .toolbar-item svg[fill='none'] {
+  fill: none;
+  stroke: currentColor;
+}
+
+.detail-md-editor .milkdown .milkdown-toolbar .toolbar-item.active svg {
+  color: var(--accent, #005fb8);
+  fill: currentColor;
+}
+
+.detail-md-editor .milkdown .milkdown-toolbar .toolbar-item.active svg[fill='none'] {
+  fill: none;
+  stroke: currentColor;
+}
+
+.detail-md-editor .milkdown .milkdown-toolbar .divider {
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: rgba(128, 128, 128, 0.35);
+}
+
+/* 页面布局 */
+.detail-md-crepe[data-layout='full'] .detail-md-editor .ProseMirror {
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.detail-md-crepe[data-layout='centered'] .detail-md-editor .ProseMirror {
+  max-width: calc(var(--hymd-mm, 3.7795px) * var(--hymd-content-w-mm, 200));
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* 纸面简化版：A4 宽 + 白纸底 + 页边距 + 阴影，不分页 */
+.detail-md-crepe[data-layout='paper'] {
+  background: #e8e8e8;
+}
+
+.detail-md-crepe[data-layout='paper'] .detail-md-editor .milkdown {
+  --crepe-color-background: transparent;
+  background: transparent;
+}
+
+.detail-md-crepe[data-layout='paper'] .detail-md-editor .ProseMirror {
+  max-width: calc(var(--hymd-mm, 3.7795px) * 210);
+  min-height: calc(var(--hymd-mm, 3.7795px) * 297);
+  margin: 16px auto 24px;
+  padding:
+    calc(var(--hymd-mm, 3.7795px) * 25)
+    calc(var(--hymd-mm, 3.7795px) * 20)
+    calc(var(--hymd-mm, 3.7795px) * 25)
+    calc(var(--hymd-mm, 3.7795px) * 20);
+  background: #ffffff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-sizing: border-box;
+}
+
+.detail-md-editor .ProseMirror > :first-child {
+  margin-top: 0;
+}
+
+/*
+ * 覆盖 Crepe reset（固定 px 行高 / code:inline-block）。
+ * 行高用 px calc 锁死；行内 * 全部 inherit，避免光标移入加粗/代码时行盒跳动。
+ */
+.detail-md-editor .milkdown .ProseMirror h1,
+.detail-md-editor .milkdown .ProseMirror h2,
+.detail-md-editor .milkdown .ProseMirror h3,
+.detail-md-editor .milkdown .ProseMirror h4,
+.detail-md-editor .milkdown .ProseMirror h5,
+.detail-md-editor .milkdown .ProseMirror h6 {
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--text, #3b3b3b);
+  margin-top: var(--hymd-heading-top, 24px);
+  margin-bottom: var(--hymd-heading-bottom, 16px);
+  padding: 0;
+}
+
+.detail-md-editor .milkdown .ProseMirror h1 {
+  font-size: calc(var(--hymd-h1-scale, 2) * var(--hymd-heading-scale, 1) * var(--hymd-font-size, 14px)) !important;
+  line-height: calc(
+    var(--hymd-font-size, 14px) * var(--hymd-heading-scale, 1) * var(--hymd-h1-scale, 2) *
+      var(--hymd-heading-line-height, 1.25)
+  ) !important;
+  padding-bottom: 0.3em;
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
+  border-bottom-color: var(--border, #e5e5e5);
+}
+
+.detail-md-editor .milkdown .ProseMirror h2 {
+  font-size: calc(var(--hymd-h2-scale, 1.5) * var(--hymd-heading-scale, 1) * var(--hymd-font-size, 14px)) !important;
+  line-height: calc(
+    var(--hymd-font-size, 14px) * var(--hymd-heading-scale, 1) * var(--hymd-h2-scale, 1.5) *
+      var(--hymd-heading-line-height, 1.25)
+  ) !important;
+  padding-bottom: 0.3em;
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
+  border-bottom-color: var(--border, #e5e5e5);
+}
+
+.detail-md-editor .milkdown .ProseMirror h3 {
+  font-size: calc(var(--hymd-h3-scale, 1.25) * var(--hymd-heading-scale, 1) * var(--hymd-font-size, 14px)) !important;
+  line-height: calc(
+    var(--hymd-font-size, 14px) * var(--hymd-heading-scale, 1) * var(--hymd-h3-scale, 1.25) *
+      var(--hymd-heading-line-height, 1.25)
+  ) !important;
+}
+
+.detail-md-editor .milkdown .ProseMirror h4 {
+  font-size: calc(var(--hymd-h4-scale, 1) * var(--hymd-heading-scale, 1) * var(--hymd-font-size, 14px)) !important;
+  line-height: calc(
+    var(--hymd-font-size, 14px) * var(--hymd-heading-scale, 1) * var(--hymd-h4-scale, 1) *
+      var(--hymd-heading-line-height, 1.25)
+  ) !important;
+}
+
+.detail-md-editor .milkdown .ProseMirror h5 {
+  font-size: calc(var(--hymd-h5-scale, 0.875) * var(--hymd-heading-scale, 1) * var(--hymd-font-size, 14px)) !important;
+  line-height: calc(
+    var(--hymd-font-size, 14px) * var(--hymd-heading-scale, 1) * var(--hymd-h5-scale, 0.875) *
+      var(--hymd-heading-line-height, 1.25)
+  ) !important;
+}
+
+.detail-md-editor .milkdown .ProseMirror h6 {
+  font-size: calc(var(--hymd-h6-scale, 0.85) * var(--hymd-heading-scale, 1) * var(--hymd-font-size, 14px)) !important;
+  line-height: calc(
+    var(--hymd-font-size, 14px) * var(--hymd-heading-scale, 1) * var(--hymd-h6-scale, 0.85) *
+      var(--hymd-heading-line-height, 1.25)
+  ) !important;
+  color: var(--text-muted, #6e6e6e);
+}
+
+.detail-md-crepe[data-heading-rule='off'] .detail-md-editor .milkdown .ProseMirror h1,
+.detail-md-crepe[data-heading-rule='off'] .detail-md-editor .milkdown .ProseMirror h2 {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.detail-md-editor .milkdown .ProseMirror h1 *,
+.detail-md-editor .milkdown .ProseMirror h2 *,
+.detail-md-editor .milkdown .ProseMirror h3 *,
+.detail-md-editor .milkdown .ProseMirror h4 *,
+.detail-md-editor .milkdown .ProseMirror h5 *,
+.detail-md-editor .milkdown .ProseMirror h6 *,
+.detail-md-editor .milkdown .ProseMirror p * {
+  line-height: inherit !important;
+}
+
+.detail-md-editor .milkdown .ProseMirror h1 strong,
+.detail-md-editor .milkdown .ProseMirror h2 strong,
+.detail-md-editor .milkdown .ProseMirror h3 strong,
+.detail-md-editor .milkdown .ProseMirror h4 strong,
+.detail-md-editor .milkdown .ProseMirror h5 strong,
+.detail-md-editor .milkdown .ProseMirror h6 strong,
+.detail-md-editor .milkdown .ProseMirror h1 em,
+.detail-md-editor .milkdown .ProseMirror h2 em,
+.detail-md-editor .milkdown .ProseMirror h3 em,
+.detail-md-editor .milkdown .ProseMirror h4 em,
+.detail-md-editor .milkdown .ProseMirror h5 em,
+.detail-md-editor .milkdown .ProseMirror h6 em {
+  font-size: inherit !important;
+  vertical-align: baseline;
+}
+
+.detail-md-editor .milkdown .ProseMirror .ProseMirror-trailingBreak {
+  line-height: inherit !important;
+  font-size: inherit !important;
+}
+
+.detail-md-editor .milkdown .ProseMirror img.ProseMirror-separator {
+  display: inline !important;
+  border: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.detail-md-editor .milkdown .ProseMirror p {
+  margin-top: 0;
+  margin-bottom: var(--hymd-p-spacing, 16px);
+  font-size: inherit !important;
+  line-height: var(--hymd-line-height, 22px) !important;
+  padding: 0 !important;
+  text-indent: var(--hymd-first-line-indent, 0);
+}
+
+.detail-md-editor .ProseMirror ul,
+.detail-md-editor .ProseMirror ol {
+  margin-top: 0;
+  margin-bottom: var(--hymd-list-block-spacing, 10px);
+  padding-left: var(--hymd-list-indent, 40px);
+}
+
+.detail-md-editor .ProseMirror ul > li::marker,
+.detail-md-editor .ProseMirror ol > li::marker {
+  color: var(--hymd-ds-list-marker-color, currentColor);
+  font-size: calc(var(--hymd-font-size) * var(--hymd-ds-list-marker-scale, 1));
+}
+
+.detail-md-editor .ProseMirror li + li {
+  margin-top: var(--hymd-list-item-spacing, 0.25em);
+}
+
+/* Crepe 列表块 */
+.detail-md-editor .milkdown-list-item-block .children > .milkdown-list-item-block {
+  margin-left: var(--hymd-list-indent, 40px);
+}
+
+.detail-md-editor .milkdown-list-item-block .children ul,
+.detail-md-editor .milkdown-list-item-block .children ol {
+  list-style: none;
+  padding-left: var(--hymd-list-indent, 40px);
+  margin: 0 0 var(--hymd-list-block-spacing, 10px);
+}
+
+.detail-md-editor .milkdown-list-item-block li {
+  list-style: none;
+  gap: var(--hymd-list-marker-gap, 6px);
+}
+
+.detail-md-editor .milkdown-list-item-block > li.list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--hymd-list-marker-gap, 6px);
+  padding-left: calc(var(--hymd-list-indent, 40px) - 1.25em - var(--hymd-list-marker-gap, 6px));
+}
+
+.detail-md-editor .milkdown-list-item-block li .label-wrapper {
+  width: 1.25em;
+  min-width: 1.25em;
+  height: var(--hymd-line-height, 22px);
+  color: var(--hymd-ds-list-marker-color, currentColor);
+}
+
+.detail-md-editor .milkdown-list-item-block li .label-wrapper svg {
+  width: calc(var(--hymd-font-size) * var(--hymd-ds-list-marker-scale, 1));
+  height: calc(var(--hymd-font-size) * var(--hymd-ds-list-marker-scale, 1));
+}
+
+.detail-md-editor .milkdown-list-item-block li .label {
+  color: var(--hymd-ds-list-marker-color, currentColor);
+  font-size: calc(var(--hymd-font-size) * var(--hymd-ds-list-marker-scale, 1));
+  line-height: inherit;
+  padding: 0;
+  width: auto;
+  text-align: right;
+}
+
+.detail-md-editor .milkdown-list-item-block .children li.list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--hymd-list-marker-gap, 6px);
+  padding-left: calc(var(--hymd-list-indent, 40px) - 1.25em - var(--hymd-list-marker-gap, 6px));
+}
+
+.detail-md-editor .milkdown-list-item-block + .milkdown-list-item-block {
+  margin-top: var(--hymd-list-item-spacing, 0px);
+}
+
+.detail-md-editor .milkdown-list-item-block:not(:has(+ .milkdown-list-item-block)) {
+  margin-bottom: var(--hymd-list-block-spacing, 10px);
+}
+
+.detail-md-editor .ProseMirror a {
+  color: var(--hymd-ds-link-color, #006ab1);
+  text-decoration: var(--hymd-ds-link-decoration, none);
+}
+
+.detail-md-editor .ProseMirror a:hover {
+  text-decoration: underline;
+}
+
+.detail-md-editor .ProseMirror strong {
+  font-weight: var(--hymd-ds-strong-weight, 600);
+}
+
+.detail-md-editor .ProseMirror code,
+.detail-md-editor .milkdown .ProseMirror code {
+  font-family: Consolas, 'Courier New', ui-monospace, monospace;
+  font-size: calc(1em * var(--hymd-code-inline-font-scale, 1));
+  /* Crepe 默认 inline-block + 独立 line-height 会在光标进出时撑开行盒 */
+  display: inline !important;
+  vertical-align: baseline;
+  line-height: inherit !important;
+  padding: var(--hymd-ds-code-inline-padding, 0.2em 0.4em);
+  margin: 0;
+  background: var(--hymd-ds-code-inline-bg, rgba(220, 220, 220, 0.4));
+  border-radius: var(--hymd-ds-code-inline-radius, 3px);
+  color: var(--hymd-ds-code-inline-fg, #a31515);
+}
+
+.detail-md-editor .ProseMirror pre,
+.detail-md-editor .milkdown-code-block:not(.hymd-block-card) {
+  margin-top: 0;
+  margin-bottom: var(--hymd-table-spacing, 16px);
+  padding: var(--hymd-code-padding, 16px);
+  overflow: auto;
+  font-size: calc(1em * var(--hymd-code-font-scale, 1));
+  line-height: 1.45;
+  background: var(--hymd-ds-code-block-bg, rgba(220, 220, 220, 0.4)) !important;
+  border: 1px solid var(--hymd-ds-code-block-border, transparent);
+  border-radius: var(--hymd-ds-code-block-radius, 3px);
+}
+
+.detail-md-editor .ProseMirror pre code {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
+  background: transparent;
+  border-radius: 0;
+  color: inherit;
+  font-size: inherit;
+}
+
+.detail-md-editor .ProseMirror blockquote {
+  margin: 0 0 var(--hymd-blockquote-spacing, 16px);
+  padding: 0 1em 0 var(--hymd-blockquote-pad-left, 1em);
+  color: var(--hymd-ds-quote-fg, var(--text-muted, #6e6e6e));
+  border-left: var(--hymd-ds-quote-border-width, 0.25em) solid var(--hymd-ds-quote-border, var(--border, #e5e5e5));
+  background: var(--hymd-ds-quote-bg, rgba(127, 127, 127, 0.1));
+  font-style: var(--hymd-ds-quote-italic, normal);
+  font-size: calc(1em * var(--hymd-blockquote-font-scale, 1));
+}
+
+.detail-md-editor .ProseMirror hr {
+  height: var(--hymd-ds-hr-height, 0.25em);
+  padding: 0;
+  margin: var(--hymd-hr-spacing, 24px) 0;
+  background: var(--hymd-ds-hr-color, var(--border, #e5e5e5));
+  border: 0;
+}
+
+.detail-md-crepe[data-hr-visible='off'] .detail-md-editor .ProseMirror hr {
+  display: none;
+}
+
+.detail-md-editor .ProseMirror table,
+.detail-md-editor .milkdown-table-block table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  max-width: 100%;
+  margin-bottom: var(--hymd-table-spacing, 16px);
+  font-size: calc(1em * var(--hymd-table-font-scale, 1));
+  overflow: auto;
+}
+
+.detail-md-crepe:not([data-table-width='full']) .detail-md-editor .ProseMirror table,
+.detail-md-crepe[data-table-width='content'] .detail-md-editor .ProseMirror table,
+.detail-md-crepe:not([data-table-width='full']) .detail-md-editor .milkdown-table-block table {
+  width: max-content;
+  display: block;
+}
+
+.detail-md-crepe[data-table-width='full'] .detail-md-editor .ProseMirror table,
+.detail-md-crepe[data-table-width='full'] .detail-md-editor .milkdown-table-block table {
+  width: 100%;
+  display: table;
+}
+
+.detail-md-editor .ProseMirror th,
+.detail-md-editor .ProseMirror td,
+.detail-md-editor .milkdown-table-block th,
+.detail-md-editor .milkdown-table-block td {
+  padding: var(--hymd-table-pad-y, 5px) var(--hymd-table-pad-x, 10px);
+  border: 1px solid var(--hymd-ds-table-border, var(--border, #e5e5e5));
+}
+
+.detail-md-editor .ProseMirror th,
+.detail-md-editor .milkdown-table-block th {
+  font-weight: 600;
+  background: var(--hymd-ds-table-header-bg, rgba(220, 220, 220, 0.25));
+}
+
+.detail-md-editor .ProseMirror tr:nth-child(2n),
+.detail-md-editor .milkdown-table-block tr:nth-child(2n) {
+  background: var(--hymd-ds-table-zebra, rgba(220, 220, 220, 0.15));
+}
+
+/* 表格边框模式 */
+.detail-md-crepe[data-table-border='grid'] .detail-md-editor .ProseMirror th,
+.detail-md-crepe[data-table-border='grid'] .detail-md-editor .ProseMirror td,
+.detail-md-crepe[data-table-border='grid'] .detail-md-editor .milkdown-table-block th,
+.detail-md-crepe[data-table-border='grid'] .detail-md-editor .milkdown-table-block td {
+  border: 1px solid var(--hymd-ds-table-border, rgba(0, 0, 0, 0.18)) !important;
+}
+
+.detail-md-crepe[data-table-border='horizontal'] .detail-md-editor .ProseMirror th,
+.detail-md-crepe[data-table-border='horizontal'] .detail-md-editor .ProseMirror td,
+.detail-md-crepe[data-table-border='horizontal'] .detail-md-editor .milkdown-table-block th,
+.detail-md-crepe[data-table-border='horizontal'] .detail-md-editor .milkdown-table-block td {
+  border: none !important;
+  border-bottom: 1px solid var(--hymd-ds-table-border, rgba(0, 0, 0, 0.18)) !important;
+}
+
+.detail-md-crepe[data-table-border='booktabs'] .detail-md-editor .ProseMirror th,
+.detail-md-crepe[data-table-border='booktabs'] .detail-md-editor .ProseMirror td,
+.detail-md-crepe[data-table-border='booktabs'] .detail-md-editor .milkdown-table-block th,
+.detail-md-crepe[data-table-border='booktabs'] .detail-md-editor .milkdown-table-block td {
+  border: none !important;
+}
+
+.detail-md-crepe[data-table-border='booktabs'] .detail-md-editor .ProseMirror table,
+.detail-md-crepe[data-table-border='booktabs'] .detail-md-editor .milkdown-table-block table {
+  border-top: 2px solid var(--hymd-ds-table-border, #000);
+  border-bottom: 2px solid var(--hymd-ds-table-border, #000);
+  display: table;
+}
+
+.detail-md-crepe[data-table-border='booktabs'] .detail-md-editor .ProseMirror th,
+.detail-md-crepe[data-table-border='booktabs'] .detail-md-editor .milkdown-table-block th {
+  border-bottom: 1px solid var(--hymd-ds-table-border, #000) !important;
+}
+
+.detail-md-editor .ProseMirror img {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Docbar（P3 壳只引本文件时也需要；与 styles.css 对齐） */
+.detail-md-docbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 10px;
+  border-bottom: 1px solid #e5e5e5;
+  background: #f8f8f8;
+  flex-shrink: 0;
+  min-height: 28px;
+}
+
+.detail-md-docbar-main {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.detail-md-filename {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.detail-md-dirty-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+.detail-md-dir {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.detail-md-docbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.detail-md-save {
+  height: 22px;
+  padding: 0 10px;
+  font-size: 12px;
+  border: 1px solid var(--accent);
+  border-radius: 2px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.detail-md-save:hover {
+  background: var(--accent-hover, #0258a8);
+}
+
+.detail-md-readonly {
+  font-size: 11px;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 0 6px;
+  height: 22px;
+  line-height: 20px;
+}
+
+.detail-md-crepe {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.detail-md-editor-slot {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: auto;
+}

@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-choose-library-root"
+description = "Set library root path"
+commands.allow = ["choose_library_root"]

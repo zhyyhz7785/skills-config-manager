@@ -1,0 +1,58 @@
+{
+  "name": "ccm-tauri2",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Skills Config Manager (CCM) — local-first library and ledger for Cursor / Claude / Codex skills and rules",
+  "author": "zhyyhz7785",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zhyyhz7785/skills-config-manager.git"
+  },
+  "homepage": "https://github.com/zhyyhz7785/skills-config-manager",
+  "bugs": {
+    "url": "https://github.com/zhyyhz7785/skills-config-manager/issues"
+  },
+  "scripts": {
+    "dev:tauri-ui": "vite --mode tauri --config vite.config.ts",
+    "dev:tauri-ui:p0": "cross-env VITE_CCM_P0_SHELL=1 vite --mode tauri --config vite.config.ts",
+    "dev:tauri-frontend": "node scripts/dev-tauri-frontend.mjs",
+    "verify:tauri": "node scripts/verify-tauri.mjs",
+    "verify:rust-domain2": "node scripts/verify-rust-domain2.mjs",
+    "verify:rust-domain3": "node scripts/verify-rust-domain3.mjs",
+    "verify:rust-domain4": "node scripts/verify-rust-domain4.mjs",
+    "verify:rust-domain5": "node scripts/verify-rust-domain5.mjs",
+    "verify:rust-refresh": "node scripts/verify-rust-refresh.mjs",
+    "verify:rust-backup": "node scripts/verify-rust-backup.mjs",
+    "bench:perf": "node scripts/bench-tauri-perf.mjs",
+    "build:tauri-ui": "vite build --mode tauri --config vite.config.ts",
+    "build:tauri-ui:p0": "cross-env VITE_CCM_P0_SHELL=1 vite build --mode tauri --config vite.config.ts",
+    "dev:web": "vite --mode browser",
+    "tauri": "node scripts/with-cargo.mjs tauri",
+    "tauri:dev": "node scripts/with-cargo.mjs tauri dev",
+    "tauri:build": "node scripts/with-cargo.mjs tauri build --no-bundle",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
+    "verify:guards": "node scripts/verify-autonomous-ops-guards.mjs",
+    "verify:all": "node scripts/run-all-verify.mjs"
+  },
+  "dependencies": {
+    "@milkdown/crepe": "^7.15.1",
+    "@milkdown/kit": "^7.15.1",
+    "@tauri-apps/api": "^2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "yaml": "^2.7.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@types/node": "^22.15.21",
+    "@types/react": "^19.1.5",
+    "@types/react-dom": "^19.1.5",
+    "@vitejs/plugin-react": "^4.5.0",
+    "cross-env": "^7.0.3",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  }
+}

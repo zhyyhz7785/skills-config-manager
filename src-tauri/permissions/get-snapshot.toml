@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-get-snapshot"
+description = "Returns read-only AppSnapshot subset from settings + catalog"
+commands.allow = ["get_snapshot"]

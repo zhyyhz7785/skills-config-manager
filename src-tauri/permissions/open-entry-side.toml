@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-open-entry-side"
+description = "Open/reveal catalog entry paths"
+commands.allow = ["open_entry_side", "open_active_container_dir", "open_global_container"]

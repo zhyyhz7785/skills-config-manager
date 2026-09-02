@@ -1,0 +1,17 @@
+[[permission]]
+identifier = "allow-ui-state"
+description = "Persist nav/filters/selection/layout via Rust settings"
+commands.allow = [
+  "set_nav",
+  "set_default_workspace",
+  "update_workspace_config",
+  "set_workspaces_in_work_area",
+  "reorder_workspace",
+  "set_filters",
+  "set_selection",
+  "set_selection_detail",
+  "set_selection_light",
+  "set_detail_mode",
+  "set_cluster_mode",
+  "set_ui_layout"
+]

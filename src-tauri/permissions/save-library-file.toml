@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-save-library-file"
+description = "Save UTF-8 text back to a library catalog entry file (path-guarded)"
+commands.allow = ["save_library_file", "save_detail_markdown"]

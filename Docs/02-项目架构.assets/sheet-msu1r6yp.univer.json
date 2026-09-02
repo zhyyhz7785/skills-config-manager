@@ -1,0 +1,83 @@
+{
+  "id": "sheet-msu1r6yp",
+  "name": "Sheet1",
+  "sheetOrder": [
+    "sheet1"
+  ],
+  "sheets": {
+    "sheet1": {
+      "id": "sheet1",
+      "name": "Sheet1",
+      "rowCount": 6,
+      "columnCount": 3,
+      "cellData": {
+        "0": {
+          "0": {
+            "v": "层级"
+          },
+          "1": {
+            "v": "技术"
+          },
+          "2": {
+            "v": "说明"
+          }
+        },
+        "1": {
+          "0": {
+            "v": "壳"
+          },
+          "1": {
+            "v": "Tauri 2"
+          },
+          "2": {
+            "v": "WebView2"
+          }
+        },
+        "2": {
+          "0": {
+            "v": "UI"
+          },
+          "1": {
+            "v": "React App.tsx"
+          },
+          "2": {
+            "v": "全量界面（含网络库分区、多工作区容器段）"
+          }
+        },
+        "3": {
+          "0": {
+            "v": "Bridge"
+          },
+          "1": {
+            "v": "src/tauri/ccmBridge.ts"
+          },
+          "2": {
+            "v": "method → Rust"
+          }
+        },
+        "4": {
+          "0": {
+            "v": "契约"
+          },
+          "1": {
+            "v": "shared/ipc.ts"
+          },
+          "2": {
+            "v": "SSOT（是什么：单一事实来源；起什么作用：前后端 IPC 契约对齐）"
+          }
+        },
+        "5": {
+          "0": {
+            "v": "性能"
+          },
+          "1": {
+            "v": "run_perf_bench / examples/bench_perf"
+          },
+          "2": {
+            "v": "无窗快照+扫描计时"
+          }
+        }
+      }
+    }
+  }
+}

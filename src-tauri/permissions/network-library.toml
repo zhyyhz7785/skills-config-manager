@@ -1,0 +1,26 @@
+[[permission]]
+identifier = "allow-network-library"
+description = "Network library (Plan/03): ensure/choose/fetch/check/promote"
+commands.allow = [
+  "ensure_default_network_library",
+  "choose_network_library_root",
+  "fetch_network_source",
+  "check_network_updates",
+  "apply_network_cache_update",
+  "promote_network_to_library",
+  "set_network_pin",
+  "set_network_popular_visible_limit",
+  "set_network_popular_sort",
+  "set_network_popular_visibility_all",
+  "reorder_network_nav",
+  "reorder_network_list_item",
+  "set_network_intended_level",
+  "start_network_fetch",
+  "cancel_network_fetch",
+  "open_network_entry_dir",
+  "open_network_source_cache_dir",
+  "remove_network_user_source",
+  "reapply_network_customization",
+  "get_entry_operation_log",
+  "cleanup_network_cache"
+]

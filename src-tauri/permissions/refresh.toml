@@ -1,0 +1,7 @@
+[[permission]]
+identifier = "allow-refresh"
+description = "refresh / applyRefreshConflicts (M3 residual MVP)"
+commands.allow = [
+  "refresh",
+  "apply_refresh_conflicts"
+]
